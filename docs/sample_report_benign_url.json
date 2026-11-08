@@ -75,7 +75,7 @@
           }
         ]
       },
-      "source": "ThreatScope report history (deterministic indicator matching)",
+      "source": "Vigil report history (deterministic indicator matching)",
       "impact": null,
       "recommendation": null,
       "limitations": null

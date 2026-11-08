@@ -17,7 +17,7 @@ from .s2_prompt import EXPLAIN_SYSTEM, MSG_SYSTEM, msg_user
 
 S2_URL = os.getenv("S2_BASE_URL", "http://127.0.0.1:8090/v1")          # fine-tuned student (mlx_lm.server)
 S2_MODEL = os.getenv("S2_MODEL", "default_model")                       # mlx_lm.server: CLI-loaded model+adapter
-S2_NAME = os.getenv("S2_NAME", "threatscope-s2-qwen3-1.7b-lora")         # label shown in reports
+S2_NAME = os.getenv("S2_NAME", "vigil-s2-qwen3-1.7b-lora")         # label shown in reports
 FALLBACK_URL = os.getenv("OLLAMA_URL", "http://127.0.0.1:11434")       # local teacher
 FALLBACK_MODEL = os.getenv("FALLBACK_MODEL", "qwen3:4b-instruct-2507-q4_K_M")
 TIMEOUT = float(os.getenv("S2_TIMEOUT", "45"))

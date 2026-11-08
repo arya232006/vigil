@@ -114,7 +114,7 @@ def main():
         results.append(score("qwen3-1.7b base (no fine-tune)", pb, gts, texts, lb))
         print(results[-1], flush=True)
     ps, ls = run_mlx(base, a.adapter, rows)
-    results.append(score("threatscope-s2 (qwen3-1.7b + our LoRA)", ps, gts, texts, ls))
+    results.append(score("vigil-s2 (qwen3-1.7b + our LoRA)", ps, gts, texts, ls))
     print(results[-1], flush=True)
 
     # Full decision layer: deterministic risk engine over rules + System-1 (+/- System-2)
@@ -148,7 +148,7 @@ def main():
 
     results.append(hybrid(None, "risk engine: rules + System-1 (no System-2)"))
     print(results[-1], flush=True)
-    results.append(hybrid(ps, "risk engine: rules + System-1 + threatscope-s2 (full hybrid)"))
+    results.append(hybrid(ps, "risk engine: rules + System-1 + vigil-s2 (full hybrid)"))
     print(results[-1], flush=True)
 
     # Explanation task: held-out (validation) explanation examples
@@ -176,7 +176,7 @@ def main():
                     fids = kp.get("finding_ids", [])
                     cited += bool(fids)
                     valid_cites += bool(fids) and all(f in ids for f in fids)
-    results.append({"model": "threatscope-s2 explanation task", "n": len(ex_rows),
+    results.append({"model": "vigil-s2 explanation task", "n": len(ex_rows),
                     "json_valid_rate": round(ok_json / max(len(ex_rows), 1), 3),
                     "points_with_citation": round(cited / max(points, 1), 3),
                     "citations_all_valid": round(valid_cites / max(points, 1), 3)})

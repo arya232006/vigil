@@ -19,7 +19,7 @@ def pct(x):
 
 def main():
     u, u1, m, s2 = load("url_metrics.json"), load("url_metrics.v1.json"), load("msg_metrics.json"), load("s2_metrics.json")
-    L = ["# Model card: ThreatScope self-hosted AI\n",
+    L = ["# Model card: Vigil self-hosted AI\n",
          "All numbers below are generated from `backend/app/ml/artifacts/*_metrics.json` by `ml/make_model_card.py`.\n"]
     if u:
         t, op, tr, rl = u["test"], u["holdout_openphish_live"], u["holdout_tranco_200k_210k"], u.get("holdout_real_legit_subdomains", {})
@@ -43,7 +43,7 @@ def main():
               f"| Unseen modern scam families | {pct(h['detection_rate@0.5'])} detected |",
               f"| **Urgent-but-legitimate hard negatives** | **{pct(h['false_positive_rate@0.5'])} false positives**. Word statistics can't read intent; this is why System-2 exists |", ""]
     if s2:
-        L += ["## System-2 `threatscope-s2` (Qwen3-1.7B 4-bit + our LoRA, MLX)\n",
+        L += ["## System-2 `vigil-s2` (Qwen3-1.7B 4-bit + our LoRA, MLX)\n",
               f"Distilled from a local Qwen3-4B teacher; evaluated on {s2['n']} held-out messages ({s2['held_out']}).\n",
               "| Model | Binary acc. | 3-class acc. | Scam recall | Legit FPR | JSON valid | Evidence grounded | Latency |",
               "|---|---|---|---|---|---|---|---|"]

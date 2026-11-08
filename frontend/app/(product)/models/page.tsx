@@ -24,7 +24,7 @@ const PIPELINE = [
 export default function ModelsPage() {
   const { data, error, loading } = useApi<Models>("/api/models");
   const results = data?.s2?.results ?? [];
-  const fineTuned = results.find((r) => r.model.startsWith("threatscope-s2"));
+  const fineTuned = results.find((r) => r.model.startsWith("vigil-s2"));
   const base = results.find((r) => r.model.startsWith("qwen3-1.7b base"));
   const url = data?.url;
   const legitFpr = url?.holdout_real_legit_subdomains["false_positive_rate@0.5"];
@@ -49,7 +49,7 @@ export default function ModelsPage() {
           </Card>
 
           {fineTuned && base && (
-            <Card title="System-2: threatscope-s2">
+            <Card title="System-2: vigil-s2">
               <p className="mb-5 text-lg font-medium">
                 Fine-tuning cut false alarms on legitimate messages from {percent(base.legit_false_positive_rate ?? 0)} to{" "}
                 {percent(fineTuned.legit_false_positive_rate ?? 0)}.

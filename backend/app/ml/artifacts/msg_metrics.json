@@ -1,5 +1,5 @@
 {
-  "model": "threatscope-msg-v1 (word+char TF-IDF LR, isotonic calibrated)",
+  "model": "vigil-msg-v1 (word+char TF-IDF LR, isotonic calibrated)",
   "trained_at": "2026-11-08T08:57:35Z",
   "train_size": 14884,
   "test_size": 4378,

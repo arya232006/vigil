@@ -11,7 +11,7 @@ from pathlib import Path
 import pytest
 
 # Must happen before any app module is imported: store opens DB_PATH at import time.
-_TMP = Path(tempfile.mkdtemp(prefix="threatscope-test-jobs-"))
+_TMP = Path(tempfile.mkdtemp(prefix="vigil-test-jobs-"))
 os.environ["DB_PATH"] = str(_TMP / "reports.db")
 os.environ["S2_BASE_URL"] = "http://127.0.0.1:9/v1"
 os.environ["OLLAMA_URL"] = "http://127.0.0.1:9"
@@ -22,7 +22,7 @@ from fastapi.testclient import TestClient  # noqa: E402
 from app import jobs, main, pipeline, schemas, store  # noqa: E402
 
 # conftest.py sets an isolated temp DB before any app import; never touch the production database.
-assert "threatscope-tests-" in str(store.DB_PATH) or Path(store.DB_PATH) == _TMP / "reports.db", \
+assert "vigil-tests-" in str(store.DB_PATH) or Path(store.DB_PATH) == _TMP / "reports.db", \
     "tests must not use the production reports database"
 
 client = TestClient(main.app)   # no context manager: startup hooks (feed download, model warm-up) never run

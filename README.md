@@ -6,7 +6,7 @@ person can understand. Reports can be anchored on-chain (hash only) for tamper-e
 **What makes it different: the AI is ours.** Instead of calling a third-party LLM, Vigil runs a self-hosted
 **System-1 / System-2 hybrid**:
 - **System-1**: calibrated classifiers we trained (URL host model, message model), < 5 ms each, ~10 MB.
-- **System-2**: `threatscope-s2`, a Qwen3-1.7B we fine-tuned with LoRA on MLX by distilling a local teacher.
+- **System-2**: `vigil-s2`, a Qwen3-1.7B we fine-tuned with LoRA on MLX by distilling a local teacher.
   It reads intent ("do **not** share your OTP" vs "share the OTP") and writes explanations that must cite evidence.
 - A deterministic **risk engine** decides the verdict from evidence. The AI can't overrule it, and every AI quote
   and citation is verified against the input.

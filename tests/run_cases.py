@@ -57,11 +57,15 @@ def main():
     a = ap.parse_args()
     rows, passed = [], 0
     with httpx.Client(timeout=180) as c:
+        for _ in range(60):                       # wait for the threat-intel feed to finish loading at startup
+            if c.get(f"{a.api}/api/health").json()["feeds"]["openphish_urls"] > 0:
+                break
+            time.sleep(1)
         for cid, cat, inp, expected, why in CASES:
             if inp == "__LIVE_PHISH__":
                 inp = live_phish()
             t0 = time.time()
-            r = c.post(f"{a.api}/api/analyze", json={"input": inp, "type": "auto"}).json()
+            r = c.post(f"{a.api}/api/analyze", params={"fresh": "true"}, json={"input": inp, "type": "auto"}).json()   # never test cached results
             secs = time.time() - t0
             ok = r["risk_level"] in expected
             passed += ok

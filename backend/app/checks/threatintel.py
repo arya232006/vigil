@@ -119,7 +119,7 @@ def lookup(url: str, host: str) -> tuple[list[Finding], list[str]]:
         sources.append("Google Safe Browsing")
         try:
             r = httpx.post(f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={gsb}", timeout=6, json={
-                "client": {"clientId": "threatscope", "clientVersion": "1.0"},
+                "client": {"clientId": "vigil", "clientVersion": "1.0"},
                 "threatInfo": {"threatTypes": ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE"],
                                "platformTypes": ["ANY_PLATFORM"], "threatEntryTypes": ["URL"],
                                "threatEntries": [{"url": url}]}})

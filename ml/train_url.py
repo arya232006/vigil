@@ -116,7 +116,7 @@ def main():
     p_op = m.predict_proba(op, feats(op))
     p_bh = m.predict_proba(benign_hold, feats(benign_hold))
     metrics = {
-        "model": "threatscope-host-v2 (HGB + char-ngram LR, isotonic calibrated; + legitimate-subdomain data)",
+        "model": "vigil-host-v2 (HGB + char-ngram LR, isotonic calibrated; + legitimate-subdomain data)",
         "trained_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "train_size": int(len(fit)), "calibration_size": int(len(cal)), "test_size": int(len(test)),
         "test_split": "group split by registered domain (no domain overlap)",

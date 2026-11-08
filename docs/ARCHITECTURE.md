@@ -18,7 +18,7 @@ reasoning model for intent and explanation.
 
 | | System-1 (fast, typed) | System-2 (reasoning) |
 |---|---|---|
-| What | `host-v2`: HistGradientBoosting on 25 engineered host features + char-n-gram logistic regression, isotonic-calibrated · `msg-v1`: word+char TF-IDF logistic regression, isotonic-calibrated | `threatscope-s2`: Qwen3-1.7B (4-bit) + our LoRA adapter, fine-tuned with MLX |
+| What | `host-v2`: HistGradientBoosting on 25 engineered host features + char-n-gram logistic regression, isotonic-calibrated · `msg-v1`: word+char TF-IDF logistic regression, isotonic-calibrated | `vigil-s2`: Qwen3-1.7B (4-bit) + our LoRA adapter, fine-tuned with MLX |
 | Output | label + calibrated probability | typed JSON: verdict, scam_type, impersonated_entity, tactics, evidence quotes, requested_action, explanation · grounded explanations of findings citing finding ids |
 | Latency | < 5 ms, CPU | ~1–2 s on Apple Silicon |
 | Size | ~10 MB | ~1 GB (4-bit) |
@@ -98,9 +98,9 @@ input ──► type detection ──► URL/domain ─┬─► SSRF-safe fetch
 
 - **Apple Silicon (demo):** `scripts/serve_s2.sh` (MLX server :8090) + `scripts/run_api.sh` (:8000).
 - **Linux/cloud (compact):** `scripts/export_s2.sh` fuses the LoRA adapter (`mlx_lm fuse --dequantize`) and imports
-  it into Ollama with int4 quantization as **`threatscope-s2` (1.7 GB, ~176 tokens/s on Apple Silicon)**. Copy or
+  it into Ollama with int4 quantization as **`vigil-s2` (1.7 GB, ~176 tokens/s on Apple Silicon)**. Copy or
   push that model to any server running Ollama and point the backend at it:
-  `S2_BASE_URL=http://<host>:11434/v1 S2_MODEL=threatscope-s2`, which is the same OpenAI-compatible API. Backend:
+  `S2_BASE_URL=http://<host>:11434/v1 S2_MODEL=vigil-s2`, which is the same OpenAI-compatible API. Backend:
   `backend/Dockerfile`.
 - Fallback: if the student is unreachable, the backend uses the local teacher via Ollama, then templates. The UI
   never breaks.

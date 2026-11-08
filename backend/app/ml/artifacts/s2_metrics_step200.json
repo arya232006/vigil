@@ -27,7 +27,7 @@
       "avg_latency_ms": 0
     },
     {
-      "model": "threatscope-s2 (qwen3-1.7b + our LoRA)",
+      "model": "vigil-s2 (qwen3-1.7b + our LoRA)",
       "n": 169,
       "json_valid_rate": 1.0,
       "binary_accuracy": 0.905,
@@ -47,7 +47,7 @@
       "avg_latency_ms": 0
     },
     {
-      "model": "risk engine: rules + System-1 + threatscope-s2 (full hybrid)",
+      "model": "risk engine: rules + System-1 + vigil-s2 (full hybrid)",
       "n": 169,
       "binary_accuracy": 0.923,
       "three_class_accuracy": 0.643,
@@ -56,7 +56,7 @@
       "avg_latency_ms": 0
     },
     {
-      "model": "threatscope-s2 explanation task",
+      "model": "vigil-s2 explanation task",
       "n": 0,
       "json_valid_rate": 0.0,
       "points_with_citation": 0.0,

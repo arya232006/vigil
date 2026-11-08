@@ -1,6 +1,6 @@
-# ThreatScope backend (API + System-1 models). System-2 runs as a separate OpenAI-compatible server:
+# Vigil backend (API + System-1 models). System-2 runs as a separate OpenAI-compatible server:
 #  - Apple Silicon: scripts/serve_s2.sh (MLX)
-#  - Linux/cloud: llama.cpp `llama-server -m threatscope-s2.gguf --port 8090` (see docs/ARCHITECTURE.md)
+#  - Linux/cloud: llama.cpp `llama-server -m vigil-s2.gguf --port 8090` (see docs/ARCHITECTURE.md)
 FROM python:3.12-slim
 WORKDIR /app
 RUN useradd -m appuser

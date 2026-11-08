@@ -106,7 +106,7 @@ class JobManager:
         self.ttl_message = ttl_message
         self.max_jobs = max_jobs
         self.max_cache_entries = max_cache_entries
-        self._pool = ThreadPoolExecutor(max_workers=max(1, workers), thread_name_prefix="threatscope-job")
+        self._pool = ThreadPoolExecutor(max_workers=max(1, workers), thread_name_prefix="vigil-job")
         self._lock = threading.Lock()
         self._jobs: OrderedDict[str, _Job] = OrderedDict()               # job_id -> job, oldest first
         self._inflight: dict[str, _Job] = {}                             # cache key -> queued/running job

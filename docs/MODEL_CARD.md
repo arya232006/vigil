@@ -24,7 +24,7 @@ Word 1–2-gram + char 3–5-gram TF-IDF logistic regression, isotonic-calibrate
 | Unseen modern scam families | 80.6% detected |
 | **Urgent-but-legitimate hard negatives** | **18.5% false positives**. Word statistics can't read intent; this is why System-2 exists |
 
-## System-2 `threatscope-s2` (Qwen3-1.7B 4-bit + our LoRA, MLX)
+## System-2 `vigil-s2` (Qwen3-1.7B 4-bit + our LoRA, MLX)
 
 Distilled from a local Qwen3-4B teacher; evaluated on 169 held-out messages (whole seed families never seen in training + random SMS/email sample).
 
@@ -32,9 +32,9 @@ Distilled from a local Qwen3-4B teacher; evaluated on 169 held-out messages (who
 |---|---|---|---|---|---|---|---|
 | system1-msg (TF-IDF LR) | 87.0% | 74.1% | 80.9% | 8.1% | n/a | n/a | 0 ms |
 | qwen3-1.7b base (no fine-tune) | 66.9% | 50.3% | 96.6% | 85.5% | 97.0% | 96.4% | 643 ms |
-| threatscope-s2 (qwen3-1.7b + our LoRA) | 92.9% | 82.5% | 93.3% | 9.7% | 100.0% | 98.7% | 631 ms |
+| vigil-s2 (qwen3-1.7b + our LoRA) | 92.9% | 82.5% | 93.3% | 9.7% | 100.0% | 98.7% | 631 ms |
 | risk engine: rules + System-1 (no System-2) | 62.7% | 53.8% | 49.4% | 1.6% | n/a | n/a | 0 ms |
-| risk engine: rules + System-1 + threatscope-s2 (full hybrid) | 93.5% | n/a | 95.5% | 11.3% | n/a | n/a | 0 ms |
+| risk engine: rules + System-1 + vigil-s2 (full hybrid) | 93.5% | n/a | 95.5% | 11.3% | n/a | n/a | 0 ms |
 
 **Severity of hybrid decisions:** 1.6% of 62 legitimate messages were rated high-risk or confirmed (remaining false positives are only *suspicious*); 74.6% of 63 scams were escalated to high/confirmed on text alone (others are flagged *suspicious*; links inside messages are investigated separately and can escalate). Before the validation-tuned escalation rule: 34.9% of scams escalated and 0.0% of legitimate messages rated high. The rule was tuned on the validation set only; the test set was checked once afterwards.
 

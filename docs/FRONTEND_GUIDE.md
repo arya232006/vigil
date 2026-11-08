@@ -108,7 +108,7 @@ export async function investigate(input: string, fresh = false) {
 ├──────────────────────────────────────────────────────────────────────┤
 │ 🧠 What we found (explanation.summary)                                │
 │   • key point … [F1] [F3]   ← chips that scroll to the finding         │
-│   Explained by: threatscope-s2 (self-hosted)  ← from generated_by      │
+│   Explained by: vigil-s2 (self-hosted)  ← from generated_by      │
 ├───────────────────────────────┬──────────────────────────────────────┤
 │ Findings (sorted by severity) │ Type-specific panel:                  │
 │  F1 CRITICAL Listed in …      │  URL → Target + Redirect chain + TLS  │
@@ -136,7 +136,7 @@ export async function investigate(input: string, fresh = false) {
   `/F\d+/g` and render them as chips** that scroll to and highlight that finding. This shows the AI is grounded in
   evidence.
 - `explanation.generated_by`:
-  - starts with `s2:` → badge **"Explained by threatscope-s2 · our fine-tuned self-hosted model"**
+  - starts with `s2:` → badge **"Explained by vigil-s2 · our fine-tuned self-hosted model"**
   - starts with `fallback:` → "Local backup model"
   - `template` → "Rule-based summary"
 
@@ -194,7 +194,7 @@ Each `findings[]` item:
   "How we decided".
 - **Model scores:** `model_scores[]` = `{model, label, probability, details}`.
   - `system1-url/…` and `system1-msg/…`: probability bar ("Calibrated phishing probability: 87%").
-  - `s2:threatscope-s2…`: show `label` (scam / suspicious / legitimate) + `details.scam_type`,
+  - `s2:vigil-s2…`: show `label` (scam / suspicious / legitimate) + `details.scam_type`,
     `details.impersonated_entity`, `details.tactics`.
 - **Related reports (campaigns):** `correlations[]` = `{report_id, shared[], risk_level, analyzed_at}`.
   `shared` items look like `domain:evil.com`, `ip:1.2.3.4`, `upi:x@ybl`, `phone:98…`, `entity:sbi`,
@@ -236,7 +236,7 @@ Donut of `by_risk_level` + "Active campaigns" table from `recurring_indicators` 
 ### 3.7 "Our AI" page: `GET /api/models`
 Returns `{ "url": {...}, "msg": {...}, "s2": {...} }` (the same numbers as `docs/MODEL_CARD.md`). Show **big number
 cards**, these impress judges:
-- `s2.results[]` row whose `model` starts with `threatscope-s2`: `legit_false_positive_rate` (~9.7%) vs the row
+- `s2.results[]` row whose `model` starts with `vigil-s2`: `legit_false_positive_rate` (~9.7%) vs the row
   starting with `qwen3-1.7b base` (~85.5%) → **"Fine-tuning cut false alarms from 85% to 10%"**
 - same row: `json_valid_rate` (100%), `evidence_grounding_rate` (~98.7%), `avg_latency_ms` (~630 ms)
 - `url.holdout_openphish_live["detection_rate@0.5"]` (~86%), `url.test.ece` (~0.008, "calibrated")

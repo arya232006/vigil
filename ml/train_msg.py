@@ -80,7 +80,7 @@ def main():
     hold_legit = hold[hold.y == 0]
     hold_scam = hold[hold.y == 1]
     metrics = {
-        "model": "threatscope-msg-v1 (word+char TF-IDF LR, isotonic calibrated)",
+        "model": "vigil-msg-v1 (word+char TF-IDF LR, isotonic calibrated)",
         "trained_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
         "train_size": int(len(fit)), "test_size": int(len(test)),
         "test": {"roc_auc": round(float(roc_auc_score(y, p)), 4), "pr_auc": round(float(average_precision_score(y, p)), 4),

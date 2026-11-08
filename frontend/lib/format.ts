@@ -55,7 +55,7 @@ export const shortHash = (h: string) => `${h.slice(0, 10)}…${h.slice(-8)}`;
 
 export function explainedBy(generatedBy: string): { label: string; selfHosted: boolean } {
   if (generatedBy.startsWith("s2:")) {
-    return { label: "Explained by threatscope-s2, our fine-tuned self-hosted model", selfHosted: true };
+    return { label: "Explained by vigil-s2, our fine-tuned self-hosted model", selfHosted: true };
   }
   if (generatedBy.startsWith("fallback:")) return { label: "Explained by a local backup model", selfHosted: true };
   return { label: "Rule-based summary (AI model offline)", selfHosted: false };

@@ -1,5 +1,5 @@
 {
-  "model": "threatscope-host-v2 (HGB + char-ngram LR, isotonic calibrated; + legitimate-subdomain data)",
+  "model": "vigil-host-v2 (HGB + char-ngram LR, isotonic calibrated; + legitimate-subdomain data)",
   "trained_at": "2026-11-08T08:21:04Z",
   "train_size": 207145,
   "calibration_size": 41197,

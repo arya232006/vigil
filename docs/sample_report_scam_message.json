@@ -19,7 +19,7 @@
         "url": "http://sbi-kyc-update.in-verify.co/login",
         "risk_score": 72
       },
-      "source": "ThreatScope URL investigation",
+      "source": "Vigil URL investigation",
       "impact": null,
       "recommendation": null,
       "limitations": null
@@ -159,7 +159,7 @@
           }
         ]
       },
-      "source": "ThreatScope report history (deterministic indicator matching)",
+      "source": "Vigil report history (deterministic indicator matching)",
       "impact": null,
       "recommendation": null,
       "limitations": null
