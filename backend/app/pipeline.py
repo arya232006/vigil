@@ -105,7 +105,7 @@ def _finalize(report: Report, inds: list[tuple[str, str]], extra: dict[str, list
             severity=Severity.MEDIUM if bad else Severity.INFO,
             description=f"Shares infrastructure or indicators with previous reports ({len(bad)} rated high/confirmed).",
             evidence={"related": [c.model_dump() for c in report.correlations[:5]]},
-            source="ThreatScope report history (deterministic indicator matching)"))
+            source="Vigil report history (deterministic indicator matching)"))
     report.report_hash = store.compute_hash(report)
     store.save(report, inds)
     return report
@@ -354,7 +354,7 @@ def analyze_message(text: str) -> Report:
                                     description=f"Linked report {sr.report_id}: " +
                                                 "; ".join(f.title for f in sr.findings[:3]),
                                     evidence={"linked_report": sr.report_id, "url": sr.input,
-                                              "risk_score": sr.risk_score}, source="ThreatScope URL investigation"))
+                                              "risk_score": sr.risk_score}, source="Vigil URL investigation"))
 
     # Near-duplicate wording with earlier message reports (campaign detection)
     sh = _shingles(text)

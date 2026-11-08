@@ -22,7 +22,7 @@ MAX_HOPS = 8
 MAX_BYTES = 1_500_000
 TIMEOUT = httpx.Timeout(8.0, connect=5.0)
 USER_AGENT = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
-              "Chrome/130.0 Safari/537.36 ThreatScope/1.0")
+              "Chrome/130.0 Safari/537.36 Vigil/1.0")
 
 
 class BlockedTarget(Exception):

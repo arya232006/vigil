@@ -1,0 +1,90 @@
+@import "tailwindcss";
+
+:root {
+  --bg: #f4f3ef;
+  --surface: #fdfcfa;
+  --sunken: #ecebe5;
+  --ink: #1c1d1f;
+  --ink-2: #4d4f54;
+  --ink-3: #6e7076;
+  --line: #dbd9d1;
+  --accent: #1f4fd1;
+  --highlight: #ffe08a;
+  --highlight-ink: #1c1d1f;
+  --risk-critical: #7f1416;
+  --risk-high: #c0272d;
+  --risk-warn: #a85a06;
+  --risk-minor: #7a6a06;
+  --risk-ok: #1a7a42;
+  --risk-none: #5a6069;
+}
+
+:root:not([data-theme="light"]) {
+  color-scheme: light dark;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --bg: #111214;
+    --surface: #1a1c1f;
+    --sunken: #24262a;
+    --ink: #eeeef0;
+    --ink-2: #b7b9bf;
+    --ink-3: #94969d;
+    --line: #2f3238;
+    --accent: #8fb0ff;
+    --highlight: #7a5c00;
+    --highlight-ink: #fff4d1;
+    --risk-critical: #a51d20;
+    --risk-high: #c8343a;
+    --risk-warn: #a85a06;
+    --risk-minor: #7a6a06;
+    --risk-ok: #1c7f45;
+    --risk-none: #5f656e;
+  }
+}
+
+@theme inline {
+  --color-bg: var(--bg);
+  --color-surface: var(--surface);
+  --color-sunken: var(--sunken);
+  --color-ink: var(--ink);
+  --color-ink-2: var(--ink-2);
+  --color-ink-3: var(--ink-3);
+  --color-line: var(--line);
+  --color-accent: var(--accent);
+  --color-highlight: var(--highlight);
+  --color-highlight-ink: var(--highlight-ink);
+  --color-risk-critical: var(--risk-critical);
+  --color-risk-high: var(--risk-high);
+  --color-risk-warn: var(--risk-warn);
+  --color-risk-minor: var(--risk-minor);
+  --color-risk-ok: var(--risk-ok);
+  --color-risk-none: var(--risk-none);
+  --font-sans: var(--font-geist-sans);
+  --font-mono: var(--font-geist-mono);
+}
+
+body {
+  background: var(--bg);
+  color: var(--ink);
+  font-family: var(--font-geist-sans), system-ui, sans-serif;
+}
+
+:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
+}
+
+@keyframes finding-flash {
+  from { box-shadow: 0 0 0 3px var(--accent); }
+  to { box-shadow: 0 0 0 3px transparent; }
+}
+
+.finding-flash {
+  animation: finding-flash 1.6s ease-out;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .finding-flash { animation: none; outline: 2px solid var(--accent); }
+}

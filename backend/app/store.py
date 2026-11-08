@@ -38,8 +38,23 @@ _db.executescript(
         value TEXT NOT NULL
     );
     CREATE INDEX IF NOT EXISTS idx_ind ON indicators(kind, value);
+    CREATE TABLE IF NOT EXISTS anchors (
+        report_id TEXT NOT NULL,
+        chain_id INTEGER NOT NULL,
+        contract_address TEXT NOT NULL,
+        registry_id INTEGER NOT NULL,
+        tx_hash TEXT NOT NULL,
+        block_number INTEGER NOT NULL,
+        report_hash TEXT NOT NULL,
+        indicator_hash TEXT NOT NULL,
+        reporter TEXT NOT NULL,
+        anchored_at TEXT NOT NULL,
+        PRIMARY KEY (report_id, chain_id, contract_address)
+    );
     """
 )
+_ANCHOR_COLUMNS = ("report_id", "chain_id", "contract_address", "registry_id", "tx_hash", "block_number",
+                   "report_hash", "indicator_hash", "reporter", "anchored_at")
 
 
 def canonical_json(report: Report) -> str:
@@ -74,6 +89,20 @@ def save(report: Report, indicators: list[tuple[str, str]]) -> None:
 def get(report_id: str) -> Report | None:
     row = _db.execute("SELECT body FROM reports WHERE report_id=?", (report_id,)).fetchone()
     return Report.model_validate_json(row[0]) if row else None
+
+
+def save_anchor(anchor: dict) -> None:
+    with _lock:
+        _db.execute(f"INSERT OR REPLACE INTO anchors ({','.join(_ANCHOR_COLUMNS)}) VALUES "
+                    f"({','.join('?' * len(_ANCHOR_COLUMNS))})", [anchor[c] for c in _ANCHOR_COLUMNS])
+        _db.commit()
+
+
+def get_anchor(report_id: str, chain_id: int, contract_address: str) -> dict | None:
+    row = _db.execute(f"SELECT {','.join(_ANCHOR_COLUMNS)} FROM anchors "
+                      "WHERE report_id=? AND chain_id=? AND contract_address=?",
+                      (report_id, chain_id, contract_address)).fetchone()
+    return dict(zip(_ANCHOR_COLUMNS, row)) if row else None
 
 
 def list_reports(limit: int = 50) -> list[dict]:

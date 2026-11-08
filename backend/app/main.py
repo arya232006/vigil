@@ -1,4 +1,4 @@
-"""ThreatScope API — AI + cybersecurity investigation engine.
+"""Vigil API — AI + cybersecurity investigation engine.
 
 Run: uvicorn app.main:app --host 0.0.0.0 --port 8000
 """
@@ -19,7 +19,7 @@ from .checks import threatintel
 from .ml import system1, system2
 from .schemas import AnalyzeRequest, Report, VerifyResponse
 
-app = FastAPI(title="ThreatScope API", version="1.0",
+app = FastAPI(title="Vigil API", version="1.0",
               description="Self-hosted AI + cybersecurity threat investigation. No third-party AI services.")
 app.add_middleware(CORSMiddleware, allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
                    allow_methods=["*"], allow_headers=["*"])
@@ -172,3 +172,52 @@ async def analyze_email(request: Request):
     except ValidationError as e:
         raise RequestValidationError(e.errors(include_url=False)) from None
     return await run_in_threadpool(email_pipeline.analyze_email, req.raw, req.live_dns)
+
+
+# ================================================================ Web3: on-chain anchoring =======================
+from . import chain  # noqa: E402
+from .schemas import AnchorInfo, ChainVerifyResponse  # noqa: E402
+
+
+def _report_or_404(report_id: str) -> Report:
+    r = store.get(report_id)
+    if not r:
+        raise HTTPException(404, "report not found")
+    return r
+
+
+def _chain_call(fn, *args):
+    """A chain outage must never read as a failed integrity check, so it surfaces as 502/503."""
+    try:
+        return fn(*args)
+    except chain.ChainNotConfigured as e:
+        raise HTTPException(503, str(e)) from None
+    except chain.ChainError as e:
+        raise HTTPException(502, str(e)) from None
+
+
+@app.get("/api/chain/status")
+def chain_status():
+    return chain.status()
+
+
+@app.get("/api/chain/lookup")
+def chain_lookup(domain: str):
+    """On-chain reports for a domain, matched by keccak256 of the normalised domain."""
+    return _chain_call(chain.lookup, domain)
+
+
+@app.post("/api/reports/{report_id}/anchor", response_model=AnchorInfo)
+def anchor_report(report_id: str, request: Request):
+    """Commit the report's hash to ThreatRegistry. Spends the server's gas, so it is rate-limited like an analysis."""
+    _rate_limit(_client_ip(request))
+    r = _report_or_404(report_id)
+    if store.compute_hash(r) != r.report_hash:
+        raise HTTPException(409, "Report does not match its stored hash; refusing to anchor it")
+    return _chain_call(chain.anchor, r)
+
+
+@app.get("/api/reports/{report_id}/chain-verify", response_model=ChainVerifyResponse)
+def chain_verify_report(report_id: str):
+    """Recompute the report's hash and compare it with the value committed on-chain."""
+    return _chain_call(chain.verify, _report_or_404(report_id))

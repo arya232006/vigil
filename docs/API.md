@@ -1,4 +1,4 @@
-# ThreatScope API — integration guide (frontend + Web3)
+# Vigil API — integration guide (frontend + Web3)
 
 Base URL (local): `http://<backend-host>:8000` · Interactive docs: `http://<backend-host>:8000/docs`
 Full typed schema: `backend/app/schemas.py` (the `Report` model is the contract).
@@ -38,28 +38,29 @@ Rate limit: 20 analyses/min per IP (HTTP 429).
 
 ## Web3 — what goes on-chain
 
-Store **only** `report_hash` (bytes32, `0x` + 64 hex) plus metadata you choose (reporter address, timestamp,
-risk level enum, status). **Never** put the URL, message text or any personal data on-chain.
+The `ThreatRegistry` contract (`contracts/contracts/ThreatRegistry.sol`) stores two hashes per report, plus the
+reporter address and timestamp. **Never** put the URL, message text or any personal data on-chain.
 
-`report_hash = sha256( canonical_json(report without the report_hash field) )` where canonical JSON =
-`json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`, UTF-8 encoded.
+- `reportHash = sha256( canonical_json(report without the report_hash field) )` where canonical JSON =
+  `json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)`, UTF-8 encoded.
+- `indicatorHash = keccak256( normalised domain )`, lowercase with no trailing dot. It is the zero hash when the report
+  has no domain.
 
-Verification flow:
-1. Read hash from the contract for a report id.
-2. `GET /api/reports/{id}/verify?hash=<onchain hash>` → `integrity_ok: true/false`.
-3. Independent check (no trust in our server): `GET /api/reports/{id}/canonical`, sha256 it yourself
-   (e.g. `ethers.sha256(ethers.toUtf8Bytes(text))`), compare with the on-chain value.
+| Method | Path | Purpose |
+|---|---|---|
+| GET | `/api/chain/status` | `{enabled, connected, chain_id, contract_address, total_reports, signer, signer_balance_eth, explorer}` |
+| POST | `/api/reports/{id}/anchor` | Commit the report on-chain (server pays gas, rate-limited, idempotent) → tx hash, registry id, `explorer_url` |
+| GET | `/api/reports/{id}/chain-verify` | Recompute the hash and compare it with the chain → `anchored`, `integrity_ok`, `onchain_hash` |
+| GET | `/api/chain/lookup?domain=` | On-chain reports for a domain, matched by `indicatorHash` |
 
-Suggested contract shape (your call):
-```solidity
-struct ThreatReport { bytes32 reportHash; address reporter; uint64 timestamp; uint8 riskLevel; uint8 status; }
-// status: 0=submitted 1=validated 2=disputed 3=revised ; revisions point to a new reportHash
-function submitReport(bytes32 reportHash, uint8 riskLevel) external returns (uint256 id);
-function updateStatus(uint256 id, uint8 status) external;      // validator role
-function reviseReport(uint256 id, bytes32 newHash) external;   // keeps history via events
-event ReportSubmitted(uint256 indexed id, bytes32 reportHash, address reporter, uint8 riskLevel);
-```
-Risk-level enum mapping: 0 low_risk, 1 suspicious, 2 high_risk, 3 confirmed_malicious, 4 inconclusive.
+`integrity_ok` is `null` when the report has no anchor. A chain outage returns 502 and an unconfigured chain 503, so
+neither can be mistaken for tampering. `POST /anchor` returns 409 for a report that no longer matches its own hash.
+
+`GET /api/reports/{id}/verify` only compares the report with the hash stored beside it, so someone who can edit the
+database can defeat it by rewriting both. `chain-verify` is the check that catches this.
+
+Independent check (no trust in our server's verdict): `GET /api/reports/{id}/canonical`, sha256 it yourself
+(e.g. `ethers.sha256(ethers.toUtf8Bytes(text))`), and compare with `reports(id).reportHash` read from the contract.
 
 <!-- --- Track A: jobs --- -->
 ## Async jobs & caching

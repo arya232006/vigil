@@ -1,4 +1,4 @@
-# Frontend Guide: building the ThreatScope UI
+# Frontend Guide: building the Vigil UI
 
 Everything the frontend needs from the backend (AI + cybersecurity engine): what to build, which API fields
 feed each screen, and what judges will look for. Field names here match `backend/app/schemas.py` exactly.
@@ -207,8 +207,8 @@ Each `findings[]` item:
 | Element | Source |
 |---|---|
 | Report hash | `report_hash` (`0x…`, 32 bytes) + copy button |
-| "Register on-chain" | Web3 teammate's contract: `submitReport(report_hash, riskLevelEnum)` |
-| "Verify integrity" | `GET /api/reports/{id}/verify?hash=<on-chain hash>` → `integrity_ok` (green ✔ / red ✘) |
+| "Register on-chain" | `POST /api/reports/{id}/anchor` (the backend signs and pays gas) |
+| "Verify integrity" | `GET /api/reports/{id}/chain-verify` → `integrity_ok` (green ✔ / red ✘) |
 | "Verify independently" | `GET /api/reports/{id}/canonical` → sha256 in the browser → compare with the on-chain hash |
 
 ```ts
@@ -217,8 +217,7 @@ const canonical = await (await fetch(`${API}/api/reports/${id}/canonical`)).text
 const ok = sha256(toUtf8Bytes(canonical)) === onChainHash;   // no trust in our server needed
 ```
 
-Risk-level enum for the contract: `0 low_risk · 1 suspicious · 2 high_risk · 3 confirmed_malicious · 4 inconclusive`.
-**Only the hash goes on-chain**: never the URL, message or email.
+**Only hashes go on-chain**: never the URL, message or email.
 
 ### 3.5 History: `GET /api/reports?limit=50`
 Rows: `{report_id, analyzed_at, input_type, risk_level, report_hash, input_preview}`. Table with risk badge, type

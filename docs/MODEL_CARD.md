@@ -1,4 +1,4 @@
-# Model card: ThreatScope self-hosted AI
+# Model card: Vigil self-hosted AI
 
 All numbers below are generated from `backend/app/ml/artifacts/*_metrics.json` by `ml/make_model_card.py`.
 

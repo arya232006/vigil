@@ -1,4 +1,4 @@
-# ThreatScope — Architecture & Security Methodology (AI + Cybersecurity engine)
+# Vigil — Architecture & Security Methodology (AI + Cybersecurity engine)
 
 ## 1. Design principles
 

@@ -26,3 +26,12 @@ Pasted*.png
 
 # agent worktrees
 .claude/
+
+# web3 build output (deployments/ is kept: it records the public contract address)
+contracts/node_modules/
+contracts/artifacts/
+contracts/cache/
+contracts/typechain-types/
+contracts/coverage/
+contracts/deployments/localhost.json
+contracts/deployments/hardhat.json

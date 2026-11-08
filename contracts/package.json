@@ -1,0 +1,18 @@
+{
+  "name": "threatscope-contracts",
+  "private": true,
+  "version": "1.0.0",
+  "description": "ThreatRegistry: hash-only, tamper-evident registry of ThreatScope reports",
+  "scripts": {
+    "compile": "hardhat compile",
+    "test": "hardhat test",
+    "node": "hardhat node",
+    "deploy:local": "hardhat run scripts/deploy.js --network localhost",
+    "deploy:sepolia": "hardhat run scripts/deploy.js --network sepolia"
+  },
+  "devDependencies": {
+    "@nomicfoundation/hardhat-toolbox": "^6.1.2",
+    "dotenv": "^18.0.9",
+    "hardhat": "^2.29.1"
+  }
+}

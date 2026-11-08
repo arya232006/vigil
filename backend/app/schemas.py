@@ -241,5 +241,39 @@ class EmailAnalyzeRequest(BaseModel):
     live_dns: bool = True                                        # DMARC / SPF DNS lookups for the sender domain
 
 
+# --- Web3: on-chain anchoring ---
+class AnchorInfo(BaseModel):
+    report_id: str
+    chain_id: int
+    contract_address: str
+    registry_id: int                          # id inside the ThreatRegistry contract
+    tx_hash: str
+    block_number: int
+    report_hash: str
+    indicator_hash: str                       # keccak256 of the normalised domain; zero when the report has none
+    reporter: str
+    anchored_at: str
+    explorer_url: str | None = None
+    already_anchored: bool = False
+
+
+class ChainVerifyResponse(BaseModel):
+    report_id: str
+    recomputed_hash: str
+    chain_id: int
+    contract_address: str
+    anchored: bool
+    integrity_ok: bool | None = None          # None when the report has no anchor on this registry
+    onchain_hash: str | None = None
+    indicator_hash: str | None = None
+    registry_id: int | None = None
+    reporter: str | None = None
+    onchain_timestamp: str | None = None
+    tx_hash: str | None = None
+    block_number: int | None = None
+    explorer_url: str | None = None
+    detail: str | None = None
+
+
 Report.model_rebuild()
 JobInfo.model_rebuild()   # JobInfo embeds Report, which references EmailInfo
