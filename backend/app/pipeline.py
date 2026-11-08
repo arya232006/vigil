@@ -136,6 +136,14 @@ def analyze_url(raw: str, input_type: str = "url", depth: int = 0) -> Report:
     host = sp.hostname or ""
     reg = reg_domain(host)
     rank = threatintel.tranco_rank(reg)
+    raw_netloc = urlsplit(raw.strip() if "://" in raw else "http://" + raw.strip()).netloc
+    if "@" in raw_netloc:
+        shown = raw_netloc.rsplit("@", 1)[0]
+        findings.append(Finding(
+            id="", module="url", title="Link hides its real destination with '@'", severity=Severity.HIGH,
+            description=f"Everything before '@' ('{shown[:80]}') is ignored by browsers; the link really goes to {host}.",
+            evidence={"displayed_part": shown[:200], "real_host": host}, source="URL structure analysis",
+            impact="Classic trick to make a link look like a trusted site.", recommendation="Do not open this link."))
     target = TargetInfo(submitted=raw, normalized_url=url, hostname=host, registered_domain=reg)
 
     f_fetch = POOL.submit(safe_fetch, url)

@@ -18,7 +18,8 @@ Full typed schema: `backend/app/schemas.py` (the `Report` model is the contract)
 
 `type` can be `auto | url | domain | message`. URL analyses take ~5–12 s, messages ~5–15 s
 (they also investigate up to 3 links inside the message). Show a progress state.
-Rate limit: 20 analyses/min per IP (HTTP 429).
+Rate limit: 20 analyses/min per IP (HTTP 429). Optional privacy setting: `REPORT_RETENTION_DAYS=N` deletes stored
+reports after N days (default 0 = keep).
 
 ## Report — fields the frontend should show
 

@@ -51,7 +51,26 @@ def compute_hash(report: Report) -> str:
     return "0x" + hashlib.sha256(canonical_json(report).encode("utf-8")).hexdigest()
 
 
+RETENTION_DAYS = float(os.getenv("REPORT_RETENTION_DAYS", "0"))     # 0 = keep forever (default for the demo)
+
+
+def purge_expired() -> int:
+    """Delete reports (and their indicators) older than REPORT_RETENTION_DAYS. Hashes already anchored on-chain
+    stay there; only our copy of the report (including any pasted message text) is removed."""
+    if RETENTION_DAYS <= 0:
+        return 0
+    import datetime as _dt
+    cutoff = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=RETENTION_DAYS)).isoformat(timespec="seconds")
+    with _lock:
+        ids = [r[0] for r in _db.execute("SELECT report_id FROM reports WHERE analyzed_at < ?", (cutoff,))]
+        _db.executemany("DELETE FROM indicators WHERE report_id=?", [(i,) for i in ids])
+        _db.executemany("DELETE FROM reports WHERE report_id=?", [(i,) for i in ids])
+        _db.commit()
+    return len(ids)
+
+
 def save(report: Report, indicators: list[tuple[str, str]]) -> None:
+    purge_expired()
     with _lock:
         _db.execute(
             "INSERT OR REPLACE INTO reports VALUES (?,?,?,?,?,?)",

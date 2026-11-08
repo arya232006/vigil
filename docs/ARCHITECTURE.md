@@ -86,6 +86,10 @@ input ──► type detection ──► URL/domain ─┬─► SSRF-safe fetch
 |---|---|
 | SSRF (internal network, cloud metadata `169.254.169.254`) | Resolve → reject any non-global IP (private, loopback, link-local, CGNAT, multicast, reserved, IPv4-mapped IPv6) → **connect to the validated IP** with original Host/SNI (defeats DNS rebinding) · ports 80/443/8080/8443 only · each redirect hop re-validated · OCSP/CRL URLs from certificates get the same guard |
 | Malicious content | No JS execution, no downloads, 1.5 MB body cap, 8 s timeout, max 8 redirects |
+| Isolation | Inspection never executes or stores target content: pages are parsed as text, certificates as data. In deployment the backend runs in its own container as a non-root user (`backend/Dockerfile`), separating inspection from the host; outbound requests are SSRF-validated and IP-pinned |
+| Passive exposure checks | Open directory listings, links to sensitive files (`.env`, `.git`, dumps, backups), debug/stack-trace and phpinfo pages, detected **only in the fetched page**. No paths are probed |
+| URL tricks | Embedded redirect parameters (`?next=`, `?url=`, `?redirect=`… to another domain) and `user@host` links that hide the real destination |
+| Data retention | `REPORT_RETENTION_DAYS=N` deletes stored reports (incl. pasted message text) after N days; on-chain hashes are unaffected. Default 0 = keep (demo) |
 | Prompt injection | Inputs wrapped as untrusted data; injection phrases detected and flagged as a scam tactic; AI cannot set the risk class; evidence quotes and cited finding ids are verified |
 | Privacy | Never asks for passwords/OTPs/keys; only hashes go on-chain; optional external TI APIs are off by default |
 | Abuse | 20 analyses/min/IP rate limit |

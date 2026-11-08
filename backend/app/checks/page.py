@@ -272,6 +272,32 @@ def analyze(res: FetchResult, final_host: str, registered_domain: str) -> tuple[
         add("Obfuscated JavaScript", Severity.MEDIUM, f"Inline scripts use obfuscation patterns: {', '.join(obf)}.",
             {"patterns": obf}, module="url", impact="Often used to hide phishing/malware logic from scanners.",
             limitations="Some legitimate sites minify or encode scripts.")
+    # Passive exposure checks: only what this one fetched page already shows. No paths are probed.
+    exposure_lim = "Based only on the fetched page; no other paths were requested (passive inspection)."
+    if re.match(r"(?i)\s*index of /", title) or re.search(r"(?i)<h1>\s*index of /", html[:5000]):
+        add("Open directory listing", Severity.MEDIUM, "The server lists the files in this folder to anyone.",
+            {"title": title}, impact="Can leak backups, source code or private files.",
+            rec="Disable directory listing (autoindex) on the server.", limitations=exposure_lim)
+    sensitive_rx = re.compile(r"(?i)(/\.env$|/\.git(/|$)|\.sql(\.gz)?$|\.bak$|\.old$|\.swp$|wp-config\.php|/\.htpasswd|"
+                              r"/\.ds_store$|id_rsa|/phpinfo\.php|/server-status|\.tar\.gz$|/backup[^/]*\.(zip|tar|gz)$)")
+    exposed = sorted({u for u in p.links + p.resources + p.scripts_src if sensitive_rx.search(u.split("?")[0])})[:5]
+    if exposed:
+        add("Page links to sensitive files", Severity.MEDIUM,
+            f"The page references {len(exposed)} file(s) that are normally private (config, VCS, backups, dumps).",
+            {"files": exposed}, impact="If reachable, these may expose credentials or source code.",
+            rec="Remove the files from the web root and the links from the page.", limitations=exposure_lim)
+    debug_sig = [n for n, rx in (("Python traceback", r"Traceback \(most recent call last\)"),
+                                 ("Django debug page", r"You're seeing this error because you have <code>DEBUG = True"),
+                                 ("Laravel/Whoops error page", r"Whoops! There was an error|Illuminate\\"),
+                                 ("PHP error output", r"<b>(Fatal error|Warning|Parse error)</b>:.{0,200} on line <b>\d+"),
+                                 ("Java stack trace", r"at [a-z]+(\.[a-z0-9_]+)+\([A-Za-z0-9_]+\.java:\d+\)"),
+                                 ("phpinfo() page", r"<title>phpinfo\(\)</title>|PHP Version \d+\.\d+\.\d+</h1>"))
+                 if re.search(rx, html[:300_000])]
+    if debug_sig:
+        add("Debug or error details exposed", Severity.MEDIUM, f"The page shows {', '.join(debug_sig)}.",
+            {"signatures": debug_sig}, impact="Reveals internal paths, versions and code that help attackers.",
+            rec="Turn off debug mode and show generic error pages in production.", limitations=exposure_lim)
+
     if re.search(r"oncontextmenu\s*=\s*['\"]?return false|event\.button\s*==\s*2", html, re.I):
         add("Right-click disabled", Severity.LOW, "The page blocks right-click / inspection.", {}, module="url")
     if p.iframes and not title and len(p.links) < 3:
