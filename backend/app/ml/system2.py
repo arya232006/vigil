@@ -68,14 +68,72 @@ def _json(text: str) -> dict | None:
         return None
 
 
-def _student(system: str, user: str, max_tokens: int) -> str | None:
+_LAST_PROBS: dict = {}
+
+
+def _verdict_probs(logprobs: dict | None) -> dict | None:
+    """P(scam / suspicious / legitimate) at the token that starts the verdict value (after `"verdict":"`).
+    A bare 's' token is a prefix of both 'scam' and 'suspicious': when it is the chosen token we split its
+    mass using the next token's distribution ('c'->scam, 'u'->suspicious)."""
+    import math
+    if not logprobs:
+        return None
+    toks = logprobs.get("content") or []
+    text = ""
+
+    def classify(tok: str) -> str | None:
+        t = tok.strip().lower()
+        if not t or t == "s":
+            return None
+        for v in ("scam", "suspicious", "legitimate"):
+            if v.startswith(t) or t.startswith(v):
+                return v
+        return None
+
+    for i, t in enumerate(toks):
+        text += t.get("token", "")
+        if not text.replace(" ", "").endswith('"verdict":"'):
+            continue
+        if i + 1 >= len(toks):
+            return None
+        mass = {"scam": 0.0, "suspicious": 0.0, "legitimate": 0.0}
+        s_mass = 0.0
+        for alt in toks[i + 1].get("top_logprobs", []):
+            p = math.exp(alt.get("logprob", -99))
+            if alt.get("token", "").strip().lower() == "s":
+                s_mass += p
+            elif (v := classify(alt.get("token", ""))):
+                mass[v] += p
+        if s_mass and toks[i + 1].get("token", "").strip().lower() == "s" and i + 2 < len(toks):
+            nxt = {"scam": 0.0, "suspicious": 0.0}
+            for alt in toks[i + 2].get("top_logprobs", []):
+                b = alt.get("token", "").strip().lower()
+                if b.startswith("c") or b.startswith("ca"):
+                    nxt["scam"] += math.exp(alt.get("logprob", -99))
+                elif b.startswith("u"):
+                    nxt["suspicious"] += math.exp(alt.get("logprob", -99))
+            z2 = sum(nxt.values())
+            if z2 > 0:
+                mass["scam"] += s_mass * nxt["scam"] / z2
+                mass["suspicious"] += s_mass * nxt["suspicious"] / z2
+        z = sum(mass.values())
+        return {k: round(v / z, 5) for k, v in mass.items()} if z > 0 else None
+    return None
+
+
+def _student(system: str, user: str, max_tokens: int, want_probs: bool = False) -> str | None:
     try:
-        r = httpx.post(f"{S2_URL}/chat/completions", timeout=TIMEOUT, json={
-            "model": S2_MODEL, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
-            "temperature": 0.0, "max_tokens": max_tokens,
-            "chat_template_kwargs": {"enable_thinking": False}})      # must match the fine-tuning format
+        body = {"model": S2_MODEL, "messages": [{"role": "system", "content": system}, {"role": "user", "content": user}],
+                "temperature": 0.0, "max_tokens": max_tokens,
+                "chat_template_kwargs": {"enable_thinking": False}}      # must match the fine-tuning format
+        if want_probs:
+            body.update(logprobs=True, top_logprobs=10)
+        r = httpx.post(f"{S2_URL}/chat/completions", timeout=TIMEOUT, json=body)
         r.raise_for_status()
-        return r.json()["choices"][0]["message"]["content"]
+        ch = r.json()["choices"][0]
+        if want_probs:
+            _LAST_PROBS["v"] = _verdict_probs(ch.get("logprobs"))
+        return ch["message"]["content"]
     except (httpx.HTTPError, KeyError, ValueError):
         return None
 
@@ -117,6 +175,30 @@ def _normalize(out: dict | None) -> dict | None:
     return out
 
 
+_CAL_PATH = __import__("pathlib").Path(__file__).resolve().parent / "artifacts" / "s2_calibration.json"
+
+
+ROUTER_ENABLED = os.getenv("ROUTER_ENABLED", "1") != "0"
+
+
+def router_threshold() -> float | None:
+    try:
+        return json.loads(_CAL_PATH.read_text()).get("router_s1_threshold")
+    except (OSError, ValueError):
+        return None
+
+
+def calibrate(p_raw: float) -> float | None:
+    """Platt scaling fitted on the validation set (ml/calibrate_s2.py). Returns None if not fitted yet."""
+    import math
+    try:
+        c = json.loads(_CAL_PATH.read_text())
+    except (OSError, ValueError):
+        return None
+    x = math.log(max(p_raw, 1e-6) / max(1 - p_raw, 1e-6))
+    return round(1 / (1 + math.exp(-(c["a"] * x + c["b"]))), 4)
+
+
 def status() -> dict:
     out = {"student_url": S2_URL, "student_model": S2_NAME, "fallback_model": FALLBACK_MODEL}
     try:
@@ -133,8 +215,10 @@ def status() -> dict:
 def analyze_message(text: str) -> tuple[dict | None, str, int]:
     """Returns (validated_result, model_used, latency_ms)."""
     t0 = time.monotonic()
-    raw, used = _student(MSG_SYSTEM, msg_user(text), 400), f"s2:{S2_NAME}"
+    _LAST_PROBS.pop("v", None)
+    raw, used = _student(MSG_SYSTEM, msg_user(text), 400, want_probs=True), f"s2:{S2_NAME}"
     out = _json(raw) if raw else None
+    probs = _LAST_PROBS.get("v") if out else None
     if not out or out.get("verdict") not in VERDICTS:
         from ..ml.teacher_schema import LABEL_SCHEMA, LABEL_SYSTEM  # lazy: only for the fallback path
         # generic JSON mode: schema-constrained decoding suppresses the nested evidence quotes
@@ -152,6 +236,10 @@ def analyze_message(text: str) -> tuple[dict | None, str, int]:
           and _norm(e["quote"]) in nt and specific(e["quote"]) and _consistent(e.get("tactic", ""), e["quote"])]
     out["ungrounded_evidence_dropped"] = len(out.get("evidence", [])) - len(ev)
     out["evidence"] = ev
+    if used.startswith("s2:") and probs:
+        out["verdict_probs"] = probs
+        out["p_unsafe_raw"] = round(probs["scam"] + probs["suspicious"], 5)
+        out["p_unsafe"] = calibrate(out["p_unsafe_raw"])
     grounded_tactics = {e.get("tactic") for e in ev}
     out["tactics"] = sorted({t for t in out.get("tactics", []) if isinstance(t, str)})
     out["ungrounded_tactics"] = sorted(set(out["tactics"]) - grounded_tactics)

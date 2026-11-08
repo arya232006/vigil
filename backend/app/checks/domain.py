@@ -30,6 +30,9 @@ OFFICIAL = {
     "dhl": ["dhl.com"], "fedex": ["fedex.com"], "dropbox": ["dropbox.com"], "adobe": ["adobe.com"],
 }
 CONFUSABLE_SCRIPTS = ("CYRILLIC", "GREEK", "ARMENIAN", "CHEROKEE")
+REDIRECT_PARAMS = {"url", "redirect", "redirect_uri", "redirect_url", "redirecturl", "next", "return", "returnurl",
+                   "return_to", "returnto", "continue", "dest", "destination", "goto", "target", "to", "out", "link",
+                   "u", "r", "rurl", "forward", "callback", "service", "success_url"}
 
 
 def _scripts(s: str) -> set[str]:
@@ -137,6 +140,25 @@ def analyze(host: str, path_and_query: str = "", tranco_rank: int | None = None)
             add(f"Brand name '{in_path[0]}' in URL path", Severity.MEDIUM,
                 f"The path mentions '{in_path[0]}' while the site is '{reg}'.",
                 {"registered_domain": reg, "brands": in_path}, "URL structure analysis")
+
+    # Embedded redirect parameters: ?url= / ?redirect= / ?next= ... pointing at a different site
+    from urllib.parse import parse_qsl, unquote, urlsplit as _us
+    q = path_and_query.split("?", 1)[1] if "?" in path_and_query else ""
+    for key, val in parse_qsl(q, keep_blank_values=False):
+        v = unquote(unquote(val)).strip()
+        if key.lower() in REDIRECT_PARAMS or re.match(r"(?i)^(https?:)?//", v):
+            if not re.match(r"(?i)^(https?:)?//", v):
+                continue
+            th = (_us(v if "://" in v else "http:" + v).hostname or "").lower()
+            treg = (_extract(th).top_domain_under_public_suffix or th) if th else ""
+            if treg and treg != reg:
+                add("Embedded redirect to another site", Severity.MEDIUM,
+                    f"The link carries a '{key}=' parameter that points to {treg}. Open-redirect parameters are "
+                    f"used to hide a phishing destination behind a trusted-looking link.",
+                    {"parameter": key, "embedded_target": v[:300], "target_domain": treg, "link_domain": reg},
+                    "URL structure analysis", "The visible domain may not be where you end up.",
+                    "Do not trust the link because of its first domain; check where it really leads.")
+                break
 
     if reg in SHORTENERS:
         add("URL shortener", Severity.LOW, "The real destination is hidden behind a shortening service.",

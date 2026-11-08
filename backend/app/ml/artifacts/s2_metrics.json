@@ -50,10 +50,10 @@
       "model": "risk engine: rules + System-1 + threatscope-s2 (full hybrid)",
       "n": 169,
       "binary_accuracy": 0.935,
-      "three_class_accuracy": 0.664,
       "scam_recall": 0.955,
       "legit_false_positive_rate": 0.113,
-      "avg_latency_ms": 0
+      "avg_latency_ms": 0,
+      "note": "escalation rule tuned on validation set only"
     },
     {
       "model": "threatscope-s2 explanation task",
@@ -65,9 +65,31 @@
   ],
   "adapter": "adapters/final",
   "hybrid_severity": {
+    "legit_rated_high_or_confirmed": 0.0161,
+    "scams_rated_high_or_confirmed": 0.746,
+    "n_legit": 62,
+    "n_scam": 63
+  },
+  "hybrid_severity_before_tuning": {
     "legit_rated_high_or_confirmed": 0.0,
     "scams_rated_high_or_confirmed": 0.3492,
     "n_legit": 62,
     "n_scam": 63
+  },
+  "calibration": {
+    "method": "Platt scaling on validation",
+    "n_test": 256,
+    "ece_raw": 0.0551,
+    "ece_calibrated": 0.0443,
+    "brier_raw": 0.0561,
+    "brier_calibrated": 0.0486
+  },
+  "router": {
+    "rule": "skip System-2 when no rule tactic, no URL/email/phone/UPI, and System-1 p < threshold",
+    "s1_threshold": 0.0115,
+    "test_skip_rate": 0.2578,
+    "test_positives_skipped": 1,
+    "test_legit_skipped": 65,
+    "avg_system2_ms": 1172
   }
 }

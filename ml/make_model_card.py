@@ -59,16 +59,48 @@ def main():
             L += [f"**Severity of hybrid decisions:** {pct(hs['legit_rated_high_or_confirmed'])} of {hs['n_legit']} legitimate "
                   f"messages were rated high-risk or confirmed (remaining false positives are only *suspicious*); "
                   f"{pct(hs['scams_rated_high_or_confirmed'])} of {hs['n_scam']} scams were escalated to high/confirmed on text "
-                  "alone (others are flagged *suspicious*; links inside messages are investigated separately and can escalate).",
+                  "alone (others are flagged *suspicious*; links inside messages are investigated separately and can escalate)."
+                  + (f" Before the validation-tuned escalation rule: {pct(s2['hybrid_severity_before_tuning']['scams_rated_high_or_confirmed'])} "
+                     f"of scams escalated and {pct(s2['hybrid_severity_before_tuning']['legit_rated_high_or_confirmed'])} of legitimate messages "
+                     "rated high. The rule was tuned on the validation set only; the test set was checked once afterwards."
+                     if s2.get("hybrid_severity_before_tuning") else ""),
                   "", "Test labels for SMS/email come from the datasets; seed-family labels are hand-written. No teacher row is "
                   "shown because test labels were reconciled with teacher outputs (that comparison would be circular).", ""]
+        if s2.get("calibration"):
+            c, rt = s2["calibration"], s2.get("router", {})
+            L += ["**Calibrated System-2 confidence:** the probability of the verdict token is turned into p(unsafe) and "
+                  f"Platt-scaled on the validation set. Test ({c['n_test']} msgs): calibration error {c['ece_raw']} → "
+                  f"**{c['ece_calibrated']}**, Brier {c['brier_raw']} → {c['brier_calibrated']}.", ""]
+            if rt:
+                L += [f"**System-1 → System-2 router:** {rt['rule']} (threshold {rt['s1_threshold']}, chosen on validation "
+                      f"so no validation scam is skipped). Test: **{pct(rt['test_skip_rate'])} of messages answered without "
+                      f"System-2**; {rt['test_positives_skipped']} positive skipped (a harmless joke SMS labelled spam in "
+                      f"the 2011 dataset), {rt['test_legit_skipped']} legitimate.", ""]
         for r in [x for x in s2["results"] if "points_with_citation" in x]:
             L += ["**Explanation task** (held-out findings → plain-language explanation):\n",
                   "| n | JSON valid | Key points citing a finding | All citations refer to real findings |", "|---|---|---|---|",
                   f"| {r['n']} | {pct(r['json_valid_rate'])} | {pct(r['points_with_citation'])} | {pct(r['citations_all_valid'])} |", ""]
+    r2 = load("s2_round2_comparison.json")
+    if r2:
+        fh_c, fh_r = r2["current"]["fresh_holdout"], r2["round2"]["fresh_holdout"]
+        ot_c, ot_r = r2["current"]["original_test"], r2["round2"]["original_test"]
+        L += ["## Experiment: round-2 fine-tune (not deployed)\n",
+              "Targeted extra data for measured weak spots (urgent-but-legitimate notices, Hinglish, real bank/OTP alerts), "
+              "weighted ×2. Judged on an independently written 40-message holdout plus the original test set.\n",
+              "| | Current (deployed) | Round 2 |", "|---|---|---|",
+              f"| Fresh holdout: legit false positives | {pct(fh_c['legit_false_positive_rate'])} | {pct(fh_r['legit_false_positive_rate'])} |",
+              f"| Fresh holdout: scam recall | {pct(fh_c['scam_recall'])} | {pct(fh_r['scam_recall'])} |",
+              f"| Original test: legit false positives | {pct(ot_c['legit_false_positive_rate'])} | {pct(ot_r['legit_false_positive_rate'])} |",
+              f"| Original test: scam recall | {pct(ot_c['scam_recall'])} | {pct(ot_r['scam_recall'])} |",
+              "",
+              "Not deployed: round 2 over-corrected toward \"legitimate\" and newly missed real scams the current model "
+              "catches (prompt-injection KYC/OTP scams, \"new number, send money by UPI\" family-emergency scams). For a "
+              "security tool missed scams cost more than mild false alarms. Next step: rebalance the extra data (weight ×1 "
+              "plus matching hard scams).", ""]
     L += ["## Limitations\n",
           "- Host-only URL model cannot recognise compromised legitimate sites; threat intel, page checks and TLS cover that.",
-          "- Training data is mostly English (plus Hinglish variants); other languages are less reliable.",
+          "- Training data is mostly English (plus Hinglish variants); other languages are less reliable. Known error: an urgent "
+          "Hinglish insurance-renewal reminder was rated high-risk on the test set.",
           "- Teacher labels are imperfect; disagreements with dataset ground truth were dropped, not corrected.",
           "- All models produce evidence for a deterministic risk engine. They never issue a verdict alone."]
     (ROOT / "docs/MODEL_CARD.md").write_text("\n".join(L) + "\n")

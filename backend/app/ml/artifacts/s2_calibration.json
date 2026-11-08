@@ -1,0 +1,7 @@
+{
+  "a": 0.41662,
+  "b": 0.3138,
+  "router_s1_threshold": 0.0115,
+  "fitted_on": "validation",
+  "n_validation": 100
+}
