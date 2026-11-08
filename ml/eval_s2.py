@@ -106,9 +106,7 @@ def main():
                          gts, texts, lat1))
     print(results[-1], flush=True)
 
-    teacher_preds = [r["teacher"] for r in rows]
-    results.append(score("teacher qwen3-4b (labels, offline)", teacher_preds, gts, texts, [0]))
-    print(results[-1], flush=True)
+    # (No teacher row: test labels were reconciled with teacher outputs, so that comparison would be circular.)
 
     base = str(ROOT / "models/qwen3-1.7b-4bit")
     if not a.skip_base:
@@ -189,6 +187,10 @@ def main():
            "held_out": "whole seed families never seen in training + random SMS/email sample",
            "hard_negatives_n": len(hn), "results": results}
     out["adapter"] = a.adapter
+    with open(Path(a.out).with_suffix(".preds.jsonl"), "w") as f:      # per-example predictions for error analysis
+        for r, g, p_s2, p_s1 in zip(rows, gts, ps, p1):
+            f.write(json.dumps({"source": r["source"], "gt": g, "s1_p": round(float(p_s1), 3),
+                                "s2": p_s2, "text": r["text"][:500]}, ensure_ascii=False) + "\n")
     Path(a.out).write_text(json.dumps(out, indent=2))
     print(json.dumps(out, indent=2))
 

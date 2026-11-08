@@ -1,0 +1,73 @@
+{
+  "evaluated_at": "2026-11-08T09:04:34Z",
+  "n": 169,
+  "held_out": "whole seed families never seen in training + random SMS/email sample",
+  "hard_negatives_n": 27,
+  "results": [
+    {
+      "model": "system1-msg (TF-IDF LR)",
+      "n": 169,
+      "json_valid_rate": 1.0,
+      "binary_accuracy": 0.87,
+      "three_class_accuracy": 0.741,
+      "scam_recall": 0.809,
+      "legit_false_positive_rate": 0.081,
+      "evidence_grounding_rate": 0.0,
+      "avg_latency_ms": 0
+    },
+    {
+      "model": "qwen3-1.7b base (no fine-tune)",
+      "n": 169,
+      "json_valid_rate": 0.97,
+      "binary_accuracy": 0.669,
+      "three_class_accuracy": 0.503,
+      "scam_recall": 0.966,
+      "legit_false_positive_rate": 0.855,
+      "evidence_grounding_rate": 0.964,
+      "avg_latency_ms": 643
+    },
+    {
+      "model": "threatscope-s2 (qwen3-1.7b + our LoRA)",
+      "n": 169,
+      "json_valid_rate": 1.0,
+      "binary_accuracy": 0.929,
+      "three_class_accuracy": 0.825,
+      "scam_recall": 0.933,
+      "legit_false_positive_rate": 0.097,
+      "evidence_grounding_rate": 0.987,
+      "avg_latency_ms": 631
+    },
+    {
+      "model": "risk engine: rules + System-1 (no System-2)",
+      "n": 169,
+      "binary_accuracy": 0.627,
+      "three_class_accuracy": 0.538,
+      "scam_recall": 0.494,
+      "legit_false_positive_rate": 0.016,
+      "avg_latency_ms": 0
+    },
+    {
+      "model": "risk engine: rules + System-1 + threatscope-s2 (full hybrid)",
+      "n": 169,
+      "binary_accuracy": 0.935,
+      "three_class_accuracy": 0.664,
+      "scam_recall": 0.955,
+      "legit_false_positive_rate": 0.113,
+      "avg_latency_ms": 0
+    },
+    {
+      "model": "threatscope-s2 explanation task",
+      "n": 27,
+      "json_valid_rate": 0.963,
+      "points_with_citation": 1.0,
+      "citations_all_valid": 1.0
+    }
+  ],
+  "adapter": "adapters/final",
+  "hybrid_severity": {
+    "legit_rated_high_or_confirmed": 0.0,
+    "scams_rated_high_or_confirmed": 0.3492,
+    "n_legit": 62,
+    "n_scam": 63
+  }
+}

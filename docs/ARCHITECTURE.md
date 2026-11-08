@@ -93,8 +93,10 @@ input ──► type detection ──► URL/domain ─┬─► SSRF-safe fetch
 ## 5. Deployment
 
 - **Apple Silicon (demo):** `scripts/serve_s2.sh` (MLX server :8090) + `scripts/run_api.sh` (:8000).
-- **Linux/cloud (compact):** export the student to GGUF (`mlx_lm fuse --dequantize` → llama.cpp
-  `convert_hf_to_gguf.py` → `llama-quantize Q4_K_M`, ~1 GB) and serve with `llama-server --port 8090`, which is the
-  same OpenAI-compatible API. Backend: `backend/Dockerfile`.
+- **Linux/cloud (compact):** `scripts/export_s2.sh` fuses the LoRA adapter (`mlx_lm fuse --dequantize`) and imports
+  it into Ollama with int4 quantization as **`threatscope-s2` (1.7 GB, ~176 tokens/s on Apple Silicon)**. Copy or
+  push that model to any server running Ollama and point the backend at it:
+  `S2_BASE_URL=http://<host>:11434/v1 S2_MODEL=threatscope-s2`, which is the same OpenAI-compatible API. Backend:
+  `backend/Dockerfile`.
 - Fallback: if the student is unreachable, the backend uses the local teacher via Ollama, then templates. The UI
   never breaks.

@@ -20,9 +20,31 @@ Word 1–2-gram + char 3–5-gram TF-IDF logistic regression, isotonic-calibrate
 
 | Evaluation | Result |
 |---|---|
-| Held-out SMS/email test (n=4,406) | F1 0.9767 · precision 0.9739 · recall 0.9794 · FPR 1.2% |
-| Unseen modern scam families | 90.9% detected |
-| **Urgent-but-legitimate hard negatives** | **50.0% false positives**. Word statistics can't read intent; this is why System-2 exists |
+| Held-out SMS/email test (n=4,378) | F1 0.9734 · precision 0.979 · recall 0.9678 · FPR 1.0% |
+| Unseen modern scam families | 80.6% detected |
+| **Urgent-but-legitimate hard negatives** | **18.5% false positives**. Word statistics can't read intent; this is why System-2 exists |
+
+## System-2 `threatscope-s2` (Qwen3-1.7B 4-bit + our LoRA, MLX)
+
+Distilled from a local Qwen3-4B teacher; evaluated on 169 held-out messages (whole seed families never seen in training + random SMS/email sample).
+
+| Model | Binary acc. | 3-class acc. | Scam recall | Legit FPR | JSON valid | Evidence grounded | Latency |
+|---|---|---|---|---|---|---|---|
+| system1-msg (TF-IDF LR) | 87.0% | 74.1% | 80.9% | 8.1% | n/a | n/a | 0 ms |
+| qwen3-1.7b base (no fine-tune) | 66.9% | 50.3% | 96.6% | 85.5% | 97.0% | 96.4% | 643 ms |
+| threatscope-s2 (qwen3-1.7b + our LoRA) | 92.9% | 82.5% | 93.3% | 9.7% | 100.0% | 98.7% | 631 ms |
+| risk engine: rules + System-1 (no System-2) | 62.7% | 53.8% | 49.4% | 1.6% | n/a | n/a | 0 ms |
+| risk engine: rules + System-1 + threatscope-s2 (full hybrid) | 93.5% | 66.4% | 95.5% | 11.3% | n/a | n/a | 0 ms |
+
+**Severity of hybrid decisions:** 0.0% of 62 legitimate messages were rated high-risk or confirmed (remaining false positives are only *suspicious*); 34.9% of 63 scams were escalated to high/confirmed on text alone (others are flagged *suspicious*; links inside messages are investigated separately and can escalate).
+
+Test labels for SMS/email come from the datasets; seed-family labels are hand-written. No teacher row is shown because test labels were reconciled with teacher outputs (that comparison would be circular).
+
+**Explanation task** (held-out findings → plain-language explanation):
+
+| n | JSON valid | Key points citing a finding | All citations refer to real findings |
+|---|---|---|---|
+| 27 | 96.3% | 100.0% | 100.0% |
 
 ## Limitations
 

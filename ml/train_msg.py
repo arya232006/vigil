@@ -57,12 +57,14 @@ def main():
     t0 = time.time()
     df = load()
     print(df.groupby(["src", "y"]).size(), flush=True)
-    # Hold out ~25% of seed groups entirely (all their variants) for the hard-negative/novel-scam test.
-    seed_groups = sorted({g for g in df.group if g.startswith("seed")})
-    random.shuffle(seed_groups)
-    hold_groups = set(seed_groups[: max(4, len(seed_groups) // 4)])
+    # Use EXACTLY the System-2 held-out set (same seed families + same SMS/email messages) so System-1 and
+    # System-2 are compared on data neither has seen.
+    s2_test = [json.loads(l) for l in (DATA / "s2" / "test_gt.jsonl").read_text().splitlines()]
+    s2_texts = {r["text"] for r in s2_test}
+    text_group = dict(zip(df.text.str[:1400], df.group))
+    hold_groups = {text_group[t] for t in s2_texts if t in text_group and text_group[t].startswith("seed")}
     hold = df[df.group.isin(hold_groups)]
-    rest = df[~df.group.isin(hold_groups)]
+    rest = df[~df.group.isin(hold_groups) & ~df.text.str[:1400].isin(s2_texts)]
     train, test = train_test_split(rest, test_size=0.2, stratify=rest.y, random_state=0)
     fit, cal = train_test_split(train, test_size=0.15, stratify=train.y, random_state=1)
 

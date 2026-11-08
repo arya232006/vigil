@@ -48,10 +48,20 @@ def main():
               "| Model | Binary acc. | 3-class acc. | Scam recall | Legit FPR | JSON valid | Evidence grounded | Latency |",
               "|---|---|---|---|---|---|---|---|"]
         for r in [x for x in s2["results"] if "binary_accuracy" in x]:
+            if r["model"].startswith("system1"):          # classifier: no JSON / quotes
+                r = {**r, "json_valid_rate": None, "evidence_grounding_rate": None}
             L.append(f"| {r['model']} | {pct(r.get('binary_accuracy'))} | {pct(r.get('three_class_accuracy'))} | "
                      f"{pct(r.get('scam_recall'))} | {pct(r.get('legit_false_positive_rate'))} | {pct(r.get('json_valid_rate'))} | "
                      f"{pct(r.get('evidence_grounding_rate'))} | {r.get('avg_latency_ms', 0)} ms |")
         L.append("")
+        hs = s2.get("hybrid_severity")
+        if hs:
+            L += [f"**Severity of hybrid decisions:** {pct(hs['legit_rated_high_or_confirmed'])} of {hs['n_legit']} legitimate "
+                  f"messages were rated high-risk or confirmed (remaining false positives are only *suspicious*); "
+                  f"{pct(hs['scams_rated_high_or_confirmed'])} of {hs['n_scam']} scams were escalated to high/confirmed on text "
+                  "alone (others are flagged *suspicious*; links inside messages are investigated separately and can escalate).",
+                  "", "Test labels for SMS/email come from the datasets; seed-family labels are hand-written. No teacher row is "
+                  "shown because test labels were reconciled with teacher outputs (that comparison would be circular).", ""]
         for r in [x for x in s2["results"] if "points_with_citation" in x]:
             L += ["**Explanation task** (held-out findings → plain-language explanation):\n",
                   "| n | JSON valid | Key points citing a finding | All citations refer to real findings |", "|---|---|---|---|",
