@@ -45,9 +45,9 @@ def _rate_limit(ip: str):
 
 
 @app.post("/api/analyze", response_model=Report)
-async def analyze(req: AnalyzeRequest, request: Request):
-    _rate_limit(request.client.host if request.client else "unknown")
-    return await run_in_threadpool(pipeline.analyze, req.input, req.type)
+async def analyze(req: AnalyzeRequest, request: Request, fresh: bool = False):
+    # Track A: result cache (?fresh=true bypasses it) + X-Cache header; see _analyze_cached at the end of the file.
+    return await _analyze_cached(req, request, fresh)
 
 
 @app.get("/api/reports")
@@ -98,3 +98,44 @@ def health():
 def models():
     """Training/evaluation metrics of the self-hosted models."""
     return system1.metrics()
+
+
+# --- Track A: jobs ---
+# Async analysis jobs + the result cache shared with POST /api/analyze. Implementation: app/jobs.py.
+from fastapi.responses import JSONResponse  # noqa: E402
+
+from . import jobs  # noqa: E402
+from .schemas import JobInfo, JobRequest  # noqa: E402
+
+
+def _client_ip(request: Request) -> str:
+    return request.client.host if request.client else "unknown"
+
+
+async def _analyze_cached(req: AnalyzeRequest, request: Request, fresh: bool) -> JSONResponse:
+    """Body of POST /api/analyze: answer from the result cache unless fresh, else analyse synchronously.
+    Rate limiting only applies when a new analysis actually runs."""
+    report = None if fresh else jobs.cached_report(req.input, req.type)
+    cache = "HIT" if report is not None else "MISS"
+    if report is None:
+        _rate_limit(_client_ip(request))
+        report = await run_in_threadpool(pipeline.analyze, req.input, req.type)
+        jobs.remember(req.input, req.type, report)
+    return JSONResponse(report.model_dump(mode="json"),
+                        headers={"X-Cache": cache, "Access-Control-Expose-Headers": "X-Cache"})
+
+
+@app.post("/api/jobs", response_model=JobInfo, status_code=202)
+async def create_job(req: JobRequest, request: Request):
+    """Queue an analysis and return at once; poll GET /api/jobs/{job_id}. A cached result comes back already
+    `done` with `cached: true` and the report; an identical input already in progress returns that job."""
+    return jobs.submit(req.input, req.type, fresh=req.fresh, on_new_work=lambda: _rate_limit(_client_ip(request)))
+
+
+@app.get("/api/jobs/{job_id}", response_model=JobInfo)
+async def get_job(job_id: str):
+    """Job status; includes the full `report` once `status` is `done`. 404 for unknown or evicted ids."""
+    job = jobs.get(job_id)
+    if job is None:
+        raise HTTPException(404, "job not found")
+    return job

@@ -153,3 +153,26 @@ class VerifyResponse(BaseModel):
     recomputed_hash: str
     provided_hash: str | None = None
     integrity_ok: bool
+
+
+# --- Track A: jobs ---
+# Async analysis jobs (POST /api/jobs, GET /api/jobs/{job_id}); see app/jobs.py and docs/API.md.
+JobStatus = Literal["queued", "running", "done", "failed"]
+
+
+class JobRequest(AnalyzeRequest):
+    fresh: bool = False                       # true = ignore the result cache and run a new analysis
+
+
+class JobInfo(BaseModel):
+    job_id: str
+    status: JobStatus
+    input_type: InputType                     # resolved type (auto-detection already applied)
+    created_at: str                           # ISO-8601 UTC
+    started_at: str | None = None
+    finished_at: str | None = None
+    elapsed_ms: int = 0                       # since submission; keeps growing while queued/running
+    report_id: str | None = None              # set when status == "done"
+    error: str | None = None                  # short reason when status == "failed" (no stack trace)
+    cached: bool = False                      # true = answered from the result cache, no new analysis ran
+    report: Report | None = None              # full report when status == "done"
