@@ -1,0 +1,27 @@
+Received: from mail-sor-f41.google.com (mail-sor-f41.google.com [209.85.220.41])
+        by mx.acme-corp.example with ESMTPS id k12sor; Tue, 3 Nov 2026 16:02:11 +0530
+Authentication-Results: mx.acme-corp.example;
+       dkim=pass header.i=@gmail.com header.s=20230601 header.b=Q2x9aB1c;
+       spf=pass (mx.acme-corp.example: domain of rajesh.mehta.ceo@gmail.com designates 209.85.220.41 as permitted sender) smtp.mailfrom=rajesh.mehta.ceo@gmail.com;
+       dmarc=pass (p=NONE sp=QUARANTINE dis=NONE) header.from=gmail.com
+Return-Path: <rajesh.mehta.ceo@gmail.com>
+From: "Rajesh Mehta (CEO)" <rajesh.mehta.ceo@gmail.com>
+To: priya.sharma@acme-corp.example
+Subject: Urgent - confidential payment needed today
+Date: Tue, 3 Nov 2026 16:02:05 +0530
+Message-ID: <CAF8q9mX2kz@mail.gmail.com>
+MIME-Version: 1.0
+Content-Type: text/plain; charset="UTF-8"
+
+Priya,
+
+I need you to process an urgent wire transfer of USD 48,500 to a new vendor today. Details below:
+
+Beneficiary: Global Trade Solutions LLC
+Account: 4402118799301
+SWIFT: GTSLUS33
+
+I am in a board meeting and cannot take calls. Please keep this confidential until the acquisition is announced, and send me the confirmation once done.
+
+Rajesh Mehta
+Chief Executive Officer

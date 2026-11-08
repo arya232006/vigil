@@ -176,3 +176,71 @@ async function investigate(input, fresh = false) {
 - Jobs run on a pool of `JOB_WORKERS` threads (default 4); extra jobs wait as `queued`. Jobs and the cache live in
   memory: a server restart forgets them (reports stay in SQLite).
 - `X-Cache` is listed in `Access-Control-Expose-Headers`, so browser code can read it cross-origin.
+
+
+<!-- ===================== Track B: email analysis (appended) ===================== -->
+## Email analysis
+
+`POST /api/analyze/email` with a JSON body (no multipart upload). Send the **full source** of the message
+("Show original" / "Download message" / `.eml` file) as a string. Max 2,000,000 characters (3 MB request body,
+HTTP 413 above). Rate-limited like `/api/analyze`. Takes as long as a message analysis plus up to ~3 s of DNS.
+
+```json
+{ "raw": "Received: ...\r\nAuthentication-Results: ...\r\nFrom: \"HDFC Bank\" <alerts@hdfc-bank.top>\r\n...", "live_dns": true }
+```
+```js
+const raw = await file.text();   // <input type="file" accept=".eml">
+fetch(`${API}/api/analyze/email`, {method: "POST", headers: {"Content-Type": "application/json"},
+                                   body: JSON.stringify({raw})});
+```
+
+Returns a normal `Report` with `input_type: "email"`. `input` holds only `Email from <sender> | Subject: <subject>`
+(the raw email is never stored in the email report). Header findings use `module: "email"`; the subject + body are
+also run through the message pipeline (rules, self-hosted AI, link investigation): that report's id is
+`email.body_report_id` = `linked_reports[0]` (link sub-reports follow), and its findings are copied in.
+
+### `report.email`
+| Field | Meaning |
+|---|---|
+| `from_address`, `from_domain`, `display_name`, `reply_to[]`, `return_path`, `sender`, `subject`, `date`, `message_id` | Parsed headers |
+| `sender_is_freemail` | From is a consumer webmail domain (gmail, outlook, yahoo, ...) |
+| `auth.spf / dkim / dmarc / arc` | Verdicts recorded by the receiving server (`pass`, `fail`, `softfail`, `none`, ...; `null` = not evaluated) |
+| `auth.spf_domain`, `auth.dkim_domains[]`, `auth.spf_aligned`, `auth.dkim_aligned` | Envelope / signing domains and DMARC relaxed alignment with the From domain |
+| `auth.authserv_id`, `auth.source` | Which header was trusted |
+| `dmarc_policy` | Live DNS: `reject`, `quarantine`, `none`, `missing`, `invalid`, `unavailable`, `not_checked` |
+| `spf_record` | The sender domain's SPF TXT record (live DNS) |
+| `received_hops`, `origin_ip` | Received-chain length and earliest public sending IP |
+| `link_count`, `link_domains[]`, `link_mismatches[]` (`text`, `href`, `text_domain`, `href_domain`) | Links in the body; mismatches = visible text shows one domain, href goes to another |
+| `attachments[]` (`filename`, `content_type`, `size`, `sha256`, `detected_type`, `risky`, `reasons[]`) | Static attachment analysis (`detected_type` from magic bytes) |
+
+### Checks
+- **Authentication (SPF / DKIM / DMARC):** read from `Authentication-Results` (RFC 8601). Only the topmost
+  header (added by your own receiving server) and others with the same authserv-id are trusted, because the sender
+  can forge headers further down. Set `EMAIL_TRUSTED_AUTHSERV_IDS=mx.yourdomain.com` to trust only named servers.
+  Falls back to `ARC-Authentication-Results` (forwarded mail) and `Received-SPF`. `dmarc=fail` → high (medium
+  when an ARC seal says the original passed); if the server did not evaluate DMARC we compute alignment
+  ourselves. A pass is reported as info only: attackers authenticate their own look-alike domains.
+- **DKIM body hash:** the canonicalised body hash is recomputed locally and compared with the signature's `bh=`
+  (proves the body is unchanged since signing; the RSA signature itself is not verified).
+- **DNS posture (live, 3 s timeouts):** `_dmarc.<domain>` policy (missing / p=none / quarantine / reject) and SPF
+  TXT presence (`+all` flagged). Skipped for webmail domains; `unavailable` on timeout.
+- **Sender identity:** multiple / malformed From headers (parser-ambiguity spoofing); display-name spoofing (an
+  address, domain or brand in the display name that the sender does not own); look-alike sender domains
+  (edit distance 1-2 after homoglyph folding, brand embedded in the domain, punycode); free-mail accounts claiming
+  an executive role (BEC / CEO fraud) or an organisation; Reply-To diverted to webmail or another domain;
+  Return-Path on another domain without an aligned DKIM signature.
+- **Links:** anchors whose visible text shows a different domain than the real href (Safe Links / Google
+  redirects unwrapped; known newsletter click-trackers reported as low), raw-IP links, `javascript:`/`data:`
+  links, forms / password fields embedded in the email. The body text sent to the message pipeline uses the
+  real href, so link investigation follows the true destination.
+- **Attachments (never opened):** risky types (executables/scripts, archives/disk images, HTML/SVG, macro
+  Office files), double extensions (`invoice.pdf.exe`), right-to-left-override names, declared Content-Type vs
+  extension mismatch, magic bytes vs extension mismatch, SHA-256 for sandbox lookups.
+- **Received chain:** hop count and origin IP (info).
+
+### Risk
+Email level: any critical → `high_risk`; ≥2 high → `high_risk`; 1 high or ≥2 medium → `suspicious`. Combined with
+the body report by taking the more severe level (inconclusive only if both are). Escalated to `high_risk` when an
+authentication failure or identity spoof (medium or above) comes with a harmful request in the body (OTP,
+credentials, payment, upfront fee, personal data, remote access). `confidence` = evidence coverage (sender parsed,
+server auth results present, DNS answered, body confidence). The reasoning is in `checks[name="risk_engine"]`.

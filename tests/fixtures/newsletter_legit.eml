@@ -1,0 +1,50 @@
+Received: from mx.recipient-mail.example (mx.recipient-mail.example [198.51.100.20])
+        by inbox.recipient-mail.example with LMTP id 9aQ2; Wed, 4 Nov 2026 07:30:12 +0000
+Authentication-Results: mx.recipient-mail.example;
+       dkim=pass header.i=@example.com header.s=news2026 header.b=Hk3vP0aZ;
+       spf=pass (mx.recipient-mail.example: domain of bounce-4471@bounces.example.com designates 192.0.2.25 as permitted sender) smtp.mailfrom=bounce-4471@bounces.example.com;
+       dmarc=pass (p=REJECT sp=REJECT dis=NONE) header.from=example.com
+Received: from mail-out.example.com (mail-out.example.com [192.0.2.25])
+        by mx.recipient-mail.example with ESMTPS id 71bd2; Wed, 4 Nov 2026 07:30:10 +0000
+DKIM-Signature: v=1; a=rsa-sha256; c=relaxed/relaxed; d=example.com; s=news2026;
+        h=from:to:subject:date:message-id:list-unsubscribe;
+        bh=onaPnSdiVAcqti/EETuOpPk+fdRQZ/u81jkIj4aUfRQ=;
+        b=Hk3vP0aZr2YJmV9pQ7wq1xT0eLdKfGs8uNcBhAoE5iRyWzXv3l6M4jCtS2nDaFbQ
+Return-Path: <bounce-4471@bounces.example.com>
+From: "The Example Weekly" <newsletter@example.com>
+To: reader@recipient-mail.example
+Subject: This week: 5 tips to keep your accounts secure
+Date: Wed, 4 Nov 2026 07:30:00 +0000
+Message-ID: <weekly-2026-45.4471@example.com>
+List-Unsubscribe: <https://example.com/unsubscribe?u=4471>
+MIME-Version: 1.0
+Content-Type: multipart/alternative; boundary="b1-example"
+
+--b1-example
+Content-Type: text/plain; charset=utf-8
+
+The Example Weekly - issue 45
+
+1. Turn on two-factor authentication everywhere.
+2. Use a password manager.
+3. Keep your devices updated.
+
+Read the full article: https://www.example.com/articles/45
+Unsubscribe: https://example.com/unsubscribe?u=4471
+
+--b1-example
+Content-Type: text/html; charset=utf-8
+
+<html><body>
+<h1>The Example Weekly - issue 45</h1>
+<p>Five habits that keep your online accounts safe:</p>
+<ol><li>Turn on two-factor authentication everywhere.</li>
+<li>Use a password manager.</li>
+<li>Keep your devices updated.</li></ol>
+<p><a href="https://www.example.com/articles/45?utm_source=newsletter">Read the full article</a>
+on <a href="https://www.example.com/">example.com</a>.</p>
+<p>Upcoming events: <a href="https://example.us21.list-manage.com/track/click?u=4471&id=9">www.example.com/events</a></p>
+<p><a href="https://example.com/unsubscribe?u=4471">Unsubscribe</a></p>
+</body></html>
+
+--b1-example--

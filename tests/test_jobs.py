@@ -21,7 +21,9 @@ from fastapi.testclient import TestClient  # noqa: E402
 
 from app import jobs, main, pipeline, schemas, store  # noqa: E402
 
-assert Path(store.DB_PATH) == _TMP / "reports.db", "app.store was imported before test_jobs could set DB_PATH"
+# conftest.py sets an isolated temp DB before any app import; never touch the production database.
+assert "threatscope-tests-" in str(store.DB_PATH) or Path(store.DB_PATH) == _TMP / "reports.db", \
+    "tests must not use the production reports database"
 
 client = TestClient(main.app)   # no context manager: startup hooks (feed download, model warm-up) never run
 FAKE_DELAY = 0.2
