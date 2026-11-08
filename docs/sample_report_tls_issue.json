@@ -1,0 +1,496 @@
+{
+  "schema_version": "1.0",
+  "report_id": "939294f14be0",
+  "input_type": "url",
+  "input": "https://wrong.host.badssl.com",
+  "analyzed_at": "2026-11-08T08:11:40+00:00",
+  "risk_level": "high_risk",
+  "risk_score": 100,
+  "confidence": 0.99,
+  "findings": [
+    {
+      "id": "F1",
+      "module": "ml",
+      "title": "AI model: domain resembles phishing infrastructure",
+      "severity": "high",
+      "description": "Our self-hosted System-1 classifier estimates a 99% (calibrated) probability that this hostname is phishing-related.",
+      "evidence": {
+        "host": "wrong.host.badssl.com",
+        "active_signals": [],
+        "probability": 0.9941
+      },
+      "source": "system1-url/host-v1",
+      "impact": null,
+      "recommendation": null,
+      "limitations": "Statistical estimate from the hostname only; not proof on its own."
+    },
+    {
+      "id": "F2",
+      "module": "tls",
+      "title": "Certificate failed validation",
+      "severity": "high",
+      "description": "Browsers would reject this certificate: Hostname mismatch, certificate is not valid for 'wrong.host.badssl.com'..",
+      "evidence": {
+        "host": "wrong.host.badssl.com",
+        "issuer": "YR1",
+        "subject_cn": "*.badssl.com",
+        "not_after": "2026-12-28T20:02:55+00:00",
+        "protocol": "TLSv1.2",
+        "verify_error": "Hostname mismatch, certificate is not valid for 'wrong.host.badssl.com'."
+      },
+      "source": "TLS handshake + X.509 parsing",
+      "impact": "Users see a security warning; attackers may be intercepting or impersonating the site.",
+      "recommendation": "Do not enter any information on this site.",
+      "limitations": null
+    },
+    {
+      "id": "F3",
+      "module": "tls",
+      "title": "Hostname does not match certificate",
+      "severity": "high",
+      "description": "The certificate is issued for ['*.badssl.com', 'badssl.com'], not for wrong.host.badssl.com.",
+      "evidence": {
+        "host": "wrong.host.badssl.com",
+        "issuer": "YR1",
+        "subject_cn": "*.badssl.com",
+        "not_after": "2026-12-28T20:02:55+00:00",
+        "protocol": "TLSv1.2",
+        "san": [
+          "*.badssl.com",
+          "badssl.com"
+        ]
+      },
+      "source": "TLS handshake + X.509 parsing",
+      "impact": "Typical of misconfiguration or impersonation.",
+      "recommendation": "Do not trust this site.",
+      "limitations": null
+    },
+    {
+      "id": "F4",
+      "module": "headers",
+      "title": "HSTS missing",
+      "severity": "medium",
+      "description": "Response has no 'strict-transport-security' header.",
+      "evidence": {
+        "header": "strict-transport-security",
+        "present_headers": [
+          "cache-control",
+          "connection",
+          "content-encoding",
+          "content-type",
+          "date",
+          "etag",
+          "last-modified",
+          "server",
+          "transfer-encoding"
+        ]
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "Browsers may be downgraded to plain HTTP by a network attacker (SSL stripping).",
+      "recommendation": "Add 'Strict-Transport-Security: max-age=31536000; includeSubDomains'.",
+      "limitations": "Header checks reflect this single response; other pages may differ."
+    },
+    {
+      "id": "F5",
+      "module": "headers",
+      "title": "Outdated nginx version disclosed",
+      "severity": "medium",
+      "description": "Banner reports 'nginx/1.10.'. nginx versions before 1.24 are out of support.",
+      "evidence": {
+        "banner": "nginx/1.10.3 (Ubuntu)"
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "Known public exploits may apply.",
+      "recommendation": "Upgrade nginx to a supported release and hide version banners.",
+      "limitations": "Based on the self-reported banner; the server may be patched or the banner falsified."
+    },
+    {
+      "id": "F6",
+      "module": "tls",
+      "title": "Deprecated TLS 1.0/1.1 accepted",
+      "severity": "medium",
+      "description": "Server still negotiates TLS 1.0 or 1.1.",
+      "evidence": {
+        "host": "wrong.host.badssl.com",
+        "issuer": "YR1",
+        "subject_cn": "*.badssl.com",
+        "not_after": "2026-12-28T20:02:55+00:00",
+        "protocol": "TLSv1.2"
+      },
+      "source": "TLS handshake + X.509 parsing",
+      "impact": "Weak protocol versions enable downgrade and known cryptographic attacks.",
+      "recommendation": "Disable TLS 1.0/1.1; allow TLS 1.2+ only.",
+      "limitations": null
+    },
+    {
+      "id": "F7",
+      "module": "headers",
+      "title": "Content-Security-Policy missing",
+      "severity": "low",
+      "description": "Response has no 'content-security-policy' header.",
+      "evidence": {
+        "header": "content-security-policy",
+        "present_headers": [
+          "cache-control",
+          "connection",
+          "content-encoding",
+          "content-type",
+          "date",
+          "etag",
+          "last-modified",
+          "server",
+          "transfer-encoding"
+        ]
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "No browser-enforced restriction on script sources, so XSS has a larger impact.",
+      "recommendation": "Define a Content-Security-Policy restricting script/style sources.",
+      "limitations": "Header checks reflect this single response; other pages may differ."
+    },
+    {
+      "id": "F8",
+      "module": "headers",
+      "title": "X-Content-Type-Options missing",
+      "severity": "low",
+      "description": "Response has no 'x-content-type-options' header.",
+      "evidence": {
+        "header": "x-content-type-options",
+        "present_headers": [
+          "cache-control",
+          "connection",
+          "content-encoding",
+          "content-type",
+          "date",
+          "etag",
+          "last-modified",
+          "server",
+          "transfer-encoding"
+        ]
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "Browsers may MIME-sniff responses into executable content.",
+      "recommendation": "Add 'X-Content-Type-Options: nosniff'.",
+      "limitations": "Header checks reflect this single response; other pages may differ."
+    },
+    {
+      "id": "F9",
+      "module": "headers",
+      "title": "Clickjacking protection missing",
+      "severity": "low",
+      "description": "Neither X-Frame-Options nor CSP frame-ancestors is set.",
+      "evidence": {
+        "header": "x-frame-options"
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "The page can be framed by another site to trick users into clicks.",
+      "recommendation": "Add 'X-Frame-Options: DENY' or CSP 'frame-ancestors'.",
+      "limitations": null
+    },
+    {
+      "id": "F10",
+      "module": "headers",
+      "title": "Referrer-Policy missing",
+      "severity": "info",
+      "description": "Response has no 'referrer-policy' header.",
+      "evidence": {
+        "header": "referrer-policy",
+        "present_headers": [
+          "cache-control",
+          "connection",
+          "content-encoding",
+          "content-type",
+          "date",
+          "etag",
+          "last-modified",
+          "server",
+          "transfer-encoding"
+        ]
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "Full URLs (possibly with tokens) can leak to third parties via the Referer header.",
+      "recommendation": "Add 'Referrer-Policy: strict-origin-when-cross-origin'.",
+      "limitations": "Header checks reflect this single response; other pages may differ."
+    },
+    {
+      "id": "F11",
+      "module": "headers",
+      "title": "Permissions-Policy missing",
+      "severity": "info",
+      "description": "Response has no 'permissions-policy' header.",
+      "evidence": {
+        "header": "permissions-policy",
+        "present_headers": [
+          "cache-control",
+          "connection",
+          "content-encoding",
+          "content-type",
+          "date",
+          "etag",
+          "last-modified",
+          "server",
+          "transfer-encoding"
+        ]
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "Embedded content is not restricted from powerful browser features.",
+      "recommendation": "Add a Permissions-Policy limiting camera, microphone, geolocation, etc.",
+      "limitations": "Header checks reflect this single response; other pages may differ."
+    },
+    {
+      "id": "F12",
+      "module": "headers",
+      "title": "Software version disclosed",
+      "severity": "info",
+      "description": "Headers reveal 'nginx/1.10.3 (Ubuntu)'.",
+      "evidence": {
+        "banner": "nginx/1.10.3 (Ubuntu)"
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "Helps attackers pick matching exploits.",
+      "recommendation": "Remove version numbers from Server/X-Powered-By headers.",
+      "limitations": null
+    },
+    {
+      "id": "F13",
+      "module": "correlation",
+      "title": "Linked to 4 earlier report(s)",
+      "severity": "medium",
+      "description": "Shares infrastructure or indicators with previous reports (4 rated high/confirmed).",
+      "evidence": {
+        "related": [
+          {
+            "report_id": "c0bd71aaa5ae",
+            "shared": [
+              "domain:badssl.com",
+              "cert:101154813e8fdab6ba4fab575185c1a13944bcec1d849ae2cd94a073494997e3",
+              "host:wrong.host.badssl.com",
+              "ip:104.154.89.105"
+            ],
+            "risk_level": "high_risk",
+            "analyzed_at": "2026-11-08T08:04:51+00:00"
+          },
+          {
+            "report_id": "6edea3d6bec1",
+            "shared": [
+              "domain:badssl.com",
+              "cert:101154813e8fdab6ba4fab575185c1a13944bcec1d849ae2cd94a073494997e3",
+              "host:wrong.host.badssl.com",
+              "ip:104.154.89.105"
+            ],
+            "risk_level": "high_risk",
+            "analyzed_at": "2026-11-08T08:09:22+00:00"
+          },
+          {
+            "report_id": "925031cea48d",
+            "shared": [
+              "domain:badssl.com",
+              "ip:104.154.89.105"
+            ],
+            "risk_level": "high_risk",
+            "analyzed_at": "2026-11-08T08:09:34+00:00"
+          },
+          {
+            "report_id": "183733305f49",
+            "shared": [
+              "domain:badssl.com",
+              "ip:104.154.89.105"
+            ],
+            "risk_level": "high_risk",
+            "analyzed_at": "2026-11-08T08:09:47+00:00"
+          }
+        ]
+      },
+      "source": "ThreatScope report history (deterministic indicator matching)",
+      "impact": null,
+      "recommendation": null,
+      "limitations": null
+    }
+  ],
+  "checks": [
+    {
+      "name": "system1_url_model",
+      "status": "ok",
+      "detail": "p(phishing)=0.9941"
+    },
+    {
+      "name": "domain_analysis",
+      "status": "ok",
+      "detail": "RDAP ok; Tranco rank 63909"
+    },
+    {
+      "name": "threat_intel",
+      "status": "ok",
+      "detail": "OpenPhish feed (local copy)"
+    },
+    {
+      "name": "website_fetch",
+      "status": "ok",
+      "detail": "HTTP 200, 1 hop(s), 1360 ms"
+    },
+    {
+      "name": "page_and_headers",
+      "status": "ok",
+      "detail": "0 forms, 0 password fields"
+    },
+    {
+      "name": "tls_certificate",
+      "status": "ok",
+      "detail": "TLSv1.2, issuer YR1, revocation good (CRL http://yr1.c.lencr.org/53.crl), SCTs 2"
+    },
+    {
+      "name": "risk_engine",
+      "status": "ok",
+      "detail": "System-1 URL model p(phishing)=0.99 → +25 | 0 critical / 3 high indicators, score 100 → high_risk"
+    }
+  ],
+  "target": {
+    "submitted": "https://wrong.host.badssl.com",
+    "normalized_url": "https://wrong.host.badssl.com/",
+    "final_url": "https://wrong.host.badssl.com/",
+    "registered_domain": "badssl.com",
+    "hostname": "wrong.host.badssl.com",
+    "ip_addresses": [
+      "104.154.89.105"
+    ],
+    "redirect_chain": [
+      {
+        "url": "https://wrong.host.badssl.com/",
+        "status": 200,
+        "ip": "104.154.89.105"
+      }
+    ],
+    "domain_created": "2015-04-07",
+    "domain_age_days": 4232,
+    "registrar": "MarkMonitor Inc.",
+    "page_title": "wrong.host.badssl.com"
+  },
+  "tls": {
+    "https": true,
+    "valid": false,
+    "subject_cn": "*.badssl.com",
+    "san": [
+      "*.badssl.com",
+      "badssl.com"
+    ],
+    "issuer": "YR1",
+    "issuer_org": "Let's Encrypt",
+    "not_before": "2026-09-29T20:02:56+00:00",
+    "not_after": "2026-12-28T20:02:55+00:00",
+    "days_remaining": 50,
+    "hostname_match": false,
+    "key_type": "RSA",
+    "key_bits": 2048,
+    "signature_algorithm": "sha256",
+    "protocol": "TLSv1.2",
+    "chain": [
+      {
+        "subject": "*.badssl.com",
+        "issuer": "YR1",
+        "org": null,
+        "not_after": "2026-12-28",
+        "key": "RSA 2048",
+        "sha256": "101154813e8fdab6ba4fab575185c1a13944bcec1d849ae2cd94a073494997e3"
+      },
+      {
+        "subject": "YR1",
+        "issuer": "Root YR",
+        "org": "Let's Encrypt",
+        "not_after": "2028-09-02",
+        "key": "RSA 2048",
+        "sha256": "13949634d99cd6fd6aa80bc034fefacceb1969feef986586713ecdbb05758d3f"
+      },
+      {
+        "subject": "Root YR",
+        "issuer": "ISRG Root X1",
+        "org": "ISRG",
+        "not_after": "2032-09-02",
+        "key": "RSA 4096",
+        "sha256": "072639d0b140d5bffae16ad9c3f6cc6086040621f51ee61a6d46a8915c07cf76"
+      }
+    ],
+    "ct_log_entries": null,
+    "verdict": "suspicious"
+  },
+  "indicators": null,
+  "model_scores": [
+    {
+      "model": "system1-url/host-v1",
+      "label": "phishing",
+      "probability": 0.9941,
+      "details": {
+        "host": "wrong.host.badssl.com",
+        "active_signals": []
+      }
+    }
+  ],
+  "linked_reports": [],
+  "correlations": [
+    {
+      "report_id": "c0bd71aaa5ae",
+      "shared": [
+        "domain:badssl.com",
+        "cert:101154813e8fdab6ba4fab575185c1a13944bcec1d849ae2cd94a073494997e3",
+        "host:wrong.host.badssl.com",
+        "ip:104.154.89.105"
+      ],
+      "risk_level": "high_risk",
+      "analyzed_at": "2026-11-08T08:04:51+00:00"
+    },
+    {
+      "report_id": "6edea3d6bec1",
+      "shared": [
+        "domain:badssl.com",
+        "cert:101154813e8fdab6ba4fab575185c1a13944bcec1d849ae2cd94a073494997e3",
+        "host:wrong.host.badssl.com",
+        "ip:104.154.89.105"
+      ],
+      "risk_level": "high_risk",
+      "analyzed_at": "2026-11-08T08:09:22+00:00"
+    },
+    {
+      "report_id": "925031cea48d",
+      "shared": [
+        "domain:badssl.com",
+        "ip:104.154.89.105"
+      ],
+      "risk_level": "high_risk",
+      "analyzed_at": "2026-11-08T08:09:34+00:00"
+    },
+    {
+      "report_id": "183733305f49",
+      "shared": [
+        "domain:badssl.com",
+        "ip:104.154.89.105"
+      ],
+      "risk_level": "high_risk",
+      "analyzed_at": "2026-11-08T08:09:47+00:00"
+    }
+  ],
+  "explanation": {
+    "summary": "The website https://wrong.host.badssl.com/ is flagged as high-risk due to multiple security failures, including a mismatched certificate, phishing-like behavior, and outdated security configurations. It should not be accessed.",
+    "key_points": [
+      "The domain appears highly suspicious and is likely part of a phishing scheme, with a 99% probability of being malicious. [F1]",
+      "The website's certificate does not match the domain name, which is a clear sign of a fraudulent or spoofed site. [F2, F3]",
+      "The site lacks modern security headers and supports outdated encryption protocols, increasing vulnerability to attacks. [F4, F6]",
+      "The server software is outdated and no longer supported, exposing it to known security flaws. [F5]",
+      "Missing security headers reduce protection against common attacks like clickjacking and content injection. [F7, F8, F9]",
+      "Do not visit or interact with the website https://wrong.host.badssl.com/. It is not a legitimate site and may be a phishing attempt.",
+      "Always verify the URL and certificate details before entering personal information or logging in."
+    ],
+    "generated_by": "fallback:qwen3:4b-instruct-2507-q4_K_M"
+  },
+  "recommendations": [
+    "Do not enter passwords, OTPs, card or bank details. Verify through the organisation's official app or number.",
+    "Do not enter any information on this site.",
+    "Do not trust this site.",
+    "Add 'Strict-Transport-Security: max-age=31536000; includeSubDomains'.",
+    "Upgrade nginx to a supported release and hide version banners.",
+    "Disable TLS 1.0/1.1; allow TLS 1.2+ only."
+  ],
+  "limitations": [
+    "Automated checks can miss new or targeted attacks; a low-risk result is not a guarantee of safety.",
+    "A valid HTTPS certificate only proves an encrypted connection, not that the website is legitimate.",
+    "Only passive, non-intrusive checks were performed; no exploitation or active scanning."
+  ],
+  "report_hash": "0xb0ac5d7f848d04c9fa2116626fddbf57aa7f8aefb1f2fa520118703c258565d2"
+}

@@ -1,0 +1,142 @@
+{
+  "schema_version": "1.0",
+  "report_id": "e85d0543e2b2",
+  "input_type": "message",
+  "input": "Your OTP for login to HDFC Bank NetBanking is 482913. Valid for 5 minutes. Do not share this OTP with anyone. Bank never asks for OTP.",
+  "analyzed_at": "2026-11-08T08:13:10+00:00",
+  "risk_level": "low_risk",
+  "risk_score": 9,
+  "confidence": 0.99,
+  "findings": [
+    {
+      "id": "F1",
+      "module": "ml",
+      "title": "Wording resembles known scam messages",
+      "severity": "low",
+      "description": "System-1 language model: 100% similarity to scam/spam wording (key terms: otp, bank, your, 00000).",
+      "evidence": {
+        "top_terms": [
+          "otp",
+          "bank",
+          "your",
+          "00000",
+          "netbanking",
+          "login"
+        ],
+        "probability": 0.997
+      },
+      "source": "system1-msg/msg-v1",
+      "impact": null,
+      "recommendation": null,
+      "limitations": "Language similarity is not proof of fraud."
+    },
+    {
+      "id": "F2",
+      "module": "correlation",
+      "title": "Linked to 1 earlier report(s)",
+      "severity": "medium",
+      "description": "Shares infrastructure or indicators with previous reports (1 rated high/confirmed).",
+      "evidence": {
+        "related": [
+          {
+            "report_id": "96f73d34e288",
+            "shared": [
+              "similar_wording:1.0"
+            ],
+            "risk_level": "high_risk",
+            "analyzed_at": "2026-11-08T08:10:39+00:00"
+          }
+        ]
+      },
+      "source": "ThreatScope report history (deterministic indicator matching)",
+      "impact": null,
+      "recommendation": null,
+      "limitations": null
+    }
+  ],
+  "checks": [
+    {
+      "name": "system1_message_model",
+      "status": "ok",
+      "detail": "p=0.997"
+    },
+    {
+      "name": "system2_reasoning_model",
+      "status": "ok",
+      "detail": "fallback:qwen3:4b-instruct-2507-q4_K_M, 2002 ms, dropped 0 ungrounded quotes"
+    },
+    {
+      "name": "rule_engine",
+      "status": "ok",
+      "detail": "0 tactic(s) matched"
+    },
+    {
+      "name": "risk_engine",
+      "status": "ok",
+      "detail": "rule tactics=[]; S2 verdict=legitimate tactics=[]; S1 p=1.00 | System-1 flagged wording, but no harmful request or deception evidence → low_risk"
+    }
+  ],
+  "target": null,
+  "tls": null,
+  "indicators": {
+    "urls": [],
+    "domains": [],
+    "emails": [],
+    "phones": [],
+    "upi_ids": []
+  },
+  "model_scores": [
+    {
+      "model": "system1-msg/msg-v1",
+      "label": "scam_like_language",
+      "probability": 0.997,
+      "details": {
+        "top_terms": [
+          "otp",
+          "bank",
+          "your",
+          "00000",
+          "netbanking",
+          "login"
+        ]
+      }
+    },
+    {
+      "model": "fallback:qwen3:4b-instruct-2507-q4_K_M",
+      "label": "legitimate",
+      "probability": 0.0,
+      "details": {
+        "scam_type": "none",
+        "impersonated_entity": "HDFC Bank",
+        "tactics": [],
+        "requested_action": "Do not share OTP"
+      }
+    }
+  ],
+  "linked_reports": [],
+  "correlations": [
+    {
+      "report_id": "96f73d34e288",
+      "shared": [
+        "similar_wording:1.0"
+      ],
+      "risk_level": "high_risk",
+      "analyzed_at": "2026-11-08T08:10:39+00:00"
+    }
+  ],
+  "explanation": {
+    "summary": "The message says the OTP is valid for 5 minutes and warns not to share it, which matches standard bank security advice. No significant threats found, but stay alert and never share OTPs or passwords.",
+    "key_points": [
+      "[F1] Wording resembles known scam messages — System-1 language model: 100% similarity to scam/spam wording (key terms: otp, bank, your, 00000)."
+    ],
+    "generated_by": "fallback:qwen3:4b-instruct-2507-q4_K_M"
+  },
+  "recommendations": [
+    "No significant threats found, but stay alert and never share OTPs or passwords."
+  ],
+  "limitations": [
+    "Automated checks can miss new or targeted attacks; a low-risk result is not a guarantee of safety.",
+    "Message sender identity cannot be verified from text alone."
+  ],
+  "report_hash": "0x2f3bdd6db81cc611317ab0d8e8bc56095b045db81d4a8b2c9f8afe8737827629"
+}

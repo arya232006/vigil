@@ -1,0 +1,129 @@
+"""SQLite storage for reports + an indicator index used for correlation."""
+from __future__ import annotations
+
+import hashlib
+import json
+import os
+import sqlite3
+import threading
+from pathlib import Path
+
+from .schemas import Report
+
+DB_PATH = Path(os.getenv("DB_PATH", Path(__file__).resolve().parent.parent / "data" / "reports.db"))
+_lock = threading.Lock()
+
+
+def _conn() -> sqlite3.Connection:
+    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
+    c = sqlite3.connect(DB_PATH, check_same_thread=False)
+    c.execute("PRAGMA journal_mode=WAL")
+    return c
+
+
+_db = _conn()
+_db.executescript(
+    """
+    CREATE TABLE IF NOT EXISTS reports (
+        report_id TEXT PRIMARY KEY,
+        analyzed_at TEXT NOT NULL,
+        input_type TEXT NOT NULL,
+        risk_level TEXT NOT NULL,
+        report_hash TEXT NOT NULL,
+        body TEXT NOT NULL
+    );
+    CREATE TABLE IF NOT EXISTS indicators (
+        report_id TEXT NOT NULL,
+        kind TEXT NOT NULL,
+        value TEXT NOT NULL
+    );
+    CREATE INDEX IF NOT EXISTS idx_ind ON indicators(kind, value);
+    """
+)
+
+
+def canonical_json(report: Report) -> str:
+    data = report.model_dump(mode="json", exclude={"report_hash"})
+    return json.dumps(data, sort_keys=True, separators=(",", ":"), ensure_ascii=False)
+
+
+def compute_hash(report: Report) -> str:
+    return "0x" + hashlib.sha256(canonical_json(report).encode("utf-8")).hexdigest()
+
+
+def save(report: Report, indicators: list[tuple[str, str]]) -> None:
+    with _lock:
+        _db.execute(
+            "INSERT OR REPLACE INTO reports VALUES (?,?,?,?,?,?)",
+            (
+                report.report_id,
+                report.analyzed_at,
+                report.input_type,
+                report.risk_level.value,
+                report.report_hash,
+                report.model_dump_json(),
+            ),
+        )
+        _db.executemany(
+            "INSERT INTO indicators VALUES (?,?,?)",
+            [(report.report_id, k, v) for k, v in set(indicators)],
+        )
+        _db.commit()
+
+
+def get(report_id: str) -> Report | None:
+    row = _db.execute("SELECT body FROM reports WHERE report_id=?", (report_id,)).fetchone()
+    return Report.model_validate_json(row[0]) if row else None
+
+
+def list_reports(limit: int = 50) -> list[dict]:
+    rows = _db.execute(
+        "SELECT report_id, analyzed_at, input_type, risk_level, report_hash, body FROM reports "
+        "ORDER BY analyzed_at DESC LIMIT ?",
+        (limit,),
+    ).fetchall()
+    out = []
+    for rid, at, typ, lvl, h, body in rows:
+        inp = json.loads(body).get("input", "")
+        out.append({
+            "report_id": rid, "analyzed_at": at, "input_type": typ, "risk_level": lvl,
+            "report_hash": h, "input_preview": inp[:120],
+        })
+    return out
+
+
+def find_related(indicators: list[tuple[str, str]], exclude_id: str | None = None) -> dict[str, list[str]]:
+    """Return {report_id: ["kind:value", ...]} for stored reports sharing any indicator."""
+    related: dict[str, list[str]] = {}
+    for kind, value in set(indicators):
+        for (rid,) in _db.execute(
+            "SELECT DISTINCT report_id FROM indicators WHERE kind=? AND value=?", (kind, value)
+        ):
+            if rid != exclude_id:
+                related.setdefault(rid, []).append(f"{kind}:{value}")
+    return related
+
+
+def summary(report_id: str) -> tuple[str, str] | None:
+    row = _db.execute("SELECT risk_level, analyzed_at FROM reports WHERE report_id=?", (report_id,)).fetchone()
+    return (row[0], row[1]) if row else None
+
+
+def recent_messages(limit: int = 300) -> list[tuple[str, str]]:
+    rows = _db.execute("SELECT report_id, body FROM reports WHERE input_type='message' ORDER BY analyzed_at DESC LIMIT ?",
+                       (limit,)).fetchall()
+    return [(rid, json.loads(body).get("input", "")) for rid, body in rows]
+
+
+def stats() -> dict:
+    levels = dict(_db.execute("SELECT risk_level, COUNT(*) FROM reports GROUP BY risk_level").fetchall())
+    types = dict(_db.execute("SELECT input_type, COUNT(*) FROM reports GROUP BY input_type").fetchall())
+    top = {}
+    for kind in ("domain", "entity", "upi", "phone", "ip"):
+        top[kind] = [{"value": v, "reports": n} for v, n in _db.execute(
+            "SELECT i.value, COUNT(DISTINCT i.report_id) n FROM indicators i JOIN reports r ON r.report_id=i.report_id "
+            "WHERE i.kind=? AND r.risk_level IN ('suspicious','high_risk','confirmed_malicious') "
+            "GROUP BY i.value HAVING n>1 ORDER BY n DESC LIMIT 10", (kind,)).fetchall()]
+    total = sum(levels.values())
+    return {"total_reports": total, "by_risk_level": levels, "by_input_type": types,
+            "recurring_indicators": top}

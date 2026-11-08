@@ -1,0 +1,69 @@
+{
+  "model": "threatscope-host-v2 (HGB + char-ngram LR, isotonic calibrated; + legitimate-subdomain data)",
+  "trained_at": "2026-11-08T08:21:04Z",
+  "train_size": 207145,
+  "calibration_size": 41197,
+  "test_size": 66733,
+  "test_split": "group split by registered domain (no domain overlap)",
+  "test": {
+    "roc_auc": 0.9278,
+    "pr_auc": 0.8989,
+    "precision": 0.9364,
+    "recall": 0.7239,
+    "f1": 0.8165,
+    "false_positive_rate": 0.0219,
+    "brier": 0.0793,
+    "ece": 0.008,
+    "confusion": {
+      "tn": 45142,
+      "fp": 1012,
+      "fn": 5682,
+      "tp": 14897
+    }
+  },
+  "holdout_openphish_live": {
+    "n": 227,
+    "detection_rate@0.5": 0.8634,
+    "detection_rate@0.3": 0.9119
+  },
+  "holdout_tranco_200k_210k": {
+    "n": 10000,
+    "false_positive_rate@0.5": 0.0873,
+    "false_positive_rate@0.8": 0.0479
+  },
+  "holdout_real_legit_subdomains": {
+    "n": 40,
+    "false_positive_rate@0.5": 0.025,
+    "false_positive_rate@0.8": 0.025,
+    "flagged@0.5": [
+      "outlook.office.com"
+    ]
+  },
+  "feature_names": [
+    "host_len",
+    "reg_label_len",
+    "n_dots",
+    "n_subdomain_parts",
+    "n_hyphens",
+    "n_digits",
+    "digit_ratio",
+    "host_entropy",
+    "label_entropy",
+    "has_punycode",
+    "non_ascii",
+    "kw_count",
+    "brand_in_subdomain",
+    "brand_distance",
+    "brand_exact_registered",
+    "brand_substring",
+    "is_shortener",
+    "suspicious_tld",
+    "tld_len",
+    "longest_token",
+    "max_digit_run",
+    "has_ip_host",
+    "vowel_ratio",
+    "free_hosting",
+    "consonant_run"
+  ]
+}

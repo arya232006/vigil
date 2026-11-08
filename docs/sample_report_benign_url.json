@@ -1,0 +1,240 @@
+{
+  "schema_version": "1.0",
+  "report_id": "284c3590295c",
+  "input_type": "url",
+  "input": "https://github.com",
+  "analyzed_at": "2026-11-08T08:12:38+00:00",
+  "risk_level": "low_risk",
+  "risk_score": 0,
+  "confidence": 0.85,
+  "findings": [
+    {
+      "id": "F1",
+      "module": "headers",
+      "title": "Permissions-Policy missing",
+      "severity": "info",
+      "description": "Response has no 'permissions-policy' header.",
+      "evidence": {
+        "header": "permissions-policy",
+        "present_headers": [
+          "accept-ranges",
+          "cache-control",
+          "content-encoding",
+          "content-language",
+          "content-security-policy",
+          "content-type",
+          "date",
+          "etag",
+          "referrer-policy",
+          "server",
+          "set-cookie",
+          "strict-transport-security",
+          "transfer-encoding",
+          "vary",
+          "x-content-type-options",
+          "x-frame-options",
+          "x-github-edge-region",
+          "x-github-request-id",
+          "x-xss-protection"
+        ]
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "Embedded content is not restricted from powerful browser features.",
+      "recommendation": "Add a Permissions-Policy limiting camera, microphone, geolocation, etc.",
+      "limitations": "Header checks reflect this single response; other pages may differ."
+    },
+    {
+      "id": "F2",
+      "module": "correlation",
+      "title": "Linked to 2 earlier report(s)",
+      "severity": "info",
+      "description": "Shares infrastructure or indicators with previous reports (0 rated high/confirmed).",
+      "evidence": {
+        "related": [
+          {
+            "report_id": "3a3008a86ff8",
+            "shared": [
+              "cert:7dc4d85cf1e310971225bc9a9257679043a243d70a3cc2a91cc5d389892c2776",
+              "domain:github.com",
+              "ip:20.207.73.82",
+              "host:github.com"
+            ],
+            "risk_level": "low_risk",
+            "analyzed_at": "2026-11-08T08:04:06+00:00"
+          },
+          {
+            "report_id": "8a542a19398a",
+            "shared": [
+              "cert:7dc4d85cf1e310971225bc9a9257679043a243d70a3cc2a91cc5d389892c2776",
+              "domain:github.com",
+              "ip:20.207.73.82",
+              "host:github.com"
+            ],
+            "risk_level": "low_risk",
+            "analyzed_at": "2026-11-08T08:10:15+00:00"
+          }
+        ]
+      },
+      "source": "ThreatScope report history (deterministic indicator matching)",
+      "impact": null,
+      "recommendation": null,
+      "limitations": null
+    }
+  ],
+  "checks": [
+    {
+      "name": "system1_url_model",
+      "status": "ok",
+      "detail": "p(phishing)=0.5094"
+    },
+    {
+      "name": "domain_analysis",
+      "status": "ok",
+      "detail": "RDAP ok; Tranco rank 34"
+    },
+    {
+      "name": "threat_intel",
+      "status": "ok",
+      "detail": "OpenPhish feed (local copy)"
+    },
+    {
+      "name": "website_fetch",
+      "status": "ok",
+      "detail": "HTTP 200, 1 hop(s), 294 ms"
+    },
+    {
+      "name": "page_and_headers",
+      "status": "ok",
+      "detail": "2 forms, 0 password fields"
+    },
+    {
+      "name": "tls_certificate",
+      "status": "ok",
+      "detail": "TLSv1.3, issuer Sectigo Public Server Authentication CA DV E36, revocation good (OCSP http://ocsp.sectigo.com), SCTs 2"
+    },
+    {
+      "name": "risk_engine",
+      "status": "ok",
+      "detail": "popular domain (Tranco #34): model weight reduced | System-1 URL model p(phishing)=0.51 → +4 | no significant indicators in completed checks → low_risk (not a guarantee of safety)"
+    }
+  ],
+  "target": {
+    "submitted": "https://github.com",
+    "normalized_url": "https://github.com/",
+    "final_url": "https://github.com/",
+    "registered_domain": "github.com",
+    "hostname": "github.com",
+    "ip_addresses": [
+      "20.207.73.82"
+    ],
+    "redirect_chain": [
+      {
+        "url": "https://github.com/",
+        "status": 200,
+        "ip": "20.207.73.82"
+      }
+    ],
+    "domain_created": "2007-10-09",
+    "domain_age_days": 6969,
+    "registrar": "MarkMonitor Inc.",
+    "page_title": "GitHub · Change is constant. GitHub keeps you ahead. · GitHub · GitHubDuolingoFedExAmerican AirlinesPostmatesMercado LibreDuolingoFedExAmerican AirlinesPostmatesMercado Libre"
+  },
+  "tls": {
+    "https": true,
+    "valid": true,
+    "subject_cn": "github.com",
+    "san": [
+      "github.com",
+      "www.github.com"
+    ],
+    "issuer": "Sectigo Public Server Authentication CA DV E36",
+    "issuer_org": "Sectigo Limited",
+    "not_before": "2026-10-30T00:00:00+00:00",
+    "not_after": "2027-01-27T23:59:59+00:00",
+    "days_remaining": 80,
+    "hostname_match": true,
+    "key_type": "EC secp256r1",
+    "key_bits": 256,
+    "signature_algorithm": "sha256",
+    "protocol": "TLSv1.3",
+    "chain": [
+      {
+        "subject": "github.com",
+        "issuer": "Sectigo Public Server Authentication CA DV E36",
+        "org": null,
+        "not_after": "2027-01-27",
+        "key": "EC secp256r1 256",
+        "sha256": "7dc4d85cf1e310971225bc9a9257679043a243d70a3cc2a91cc5d389892c2776"
+      },
+      {
+        "subject": "Sectigo Public Server Authentication CA DV E36",
+        "issuer": "Sectigo Public Server Authentication Root E46",
+        "org": "Sectigo Limited",
+        "not_after": "2036-03-21",
+        "key": "EC secp256r1 256",
+        "sha256": "873f0ba80e3ac222656dfd04158cc15c2927d42d5d05f01dee4a47eb43a916df"
+      },
+      {
+        "subject": "Sectigo Public Server Authentication Root E46",
+        "issuer": "Sectigo Public Server Authentication Root E46",
+        "org": "Sectigo Limited",
+        "not_after": "2046-03-21",
+        "key": "EC secp384r1 384",
+        "sha256": "c90f26f0fb1b4018b22227519b5ca2b53e2ca5b3be5cf18efe1bef47380c5383"
+      }
+    ],
+    "ct_log_entries": null,
+    "verdict": "valid"
+  },
+  "indicators": null,
+  "model_scores": [
+    {
+      "model": "system1-url/host-v1",
+      "label": "phishing",
+      "probability": 0.5094,
+      "details": {
+        "host": "github.com",
+        "active_signals": []
+      }
+    }
+  ],
+  "linked_reports": [],
+  "correlations": [
+    {
+      "report_id": "3a3008a86ff8",
+      "shared": [
+        "cert:7dc4d85cf1e310971225bc9a9257679043a243d70a3cc2a91cc5d389892c2776",
+        "domain:github.com",
+        "ip:20.207.73.82",
+        "host:github.com"
+      ],
+      "risk_level": "low_risk",
+      "analyzed_at": "2026-11-08T08:04:06+00:00"
+    },
+    {
+      "report_id": "8a542a19398a",
+      "shared": [
+        "cert:7dc4d85cf1e310971225bc9a9257679043a243d70a3cc2a91cc5d389892c2776",
+        "domain:github.com",
+        "ip:20.207.73.82",
+        "host:github.com"
+      ],
+      "risk_level": "low_risk",
+      "analyzed_at": "2026-11-08T08:10:15+00:00"
+    }
+  ],
+  "explanation": {
+    "summary": "No findings detected on https://github.com/. Risk level is low_risk.",
+    "key_points": [],
+    "generated_by": "fallback:qwen3:4b-instruct-2507-q4_K_M"
+  },
+  "recommendations": [
+    "No significant threats found, but stay alert and never share OTPs or passwords."
+  ],
+  "limitations": [
+    "Automated checks can miss new or targeted attacks; a low-risk result is not a guarantee of safety.",
+    "A valid HTTPS certificate only proves an encrypted connection, not that the website is legitimate.",
+    "Only passive, non-intrusive checks were performed; no exploitation or active scanning."
+  ],
+  "report_hash": "0x20f22fe7f438ee95d61df1d3182a784058d846500af3ab3674d4bfae7357418a"
+}

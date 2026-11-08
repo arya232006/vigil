@@ -1,0 +1,24 @@
+# environments & caches
+.venv/
+__pycache__/
+*.pyc
+.DS_Store
+
+# large / regenerable data (see README "Reproduce the models")
+ml/data/
+ml/models/
+ml/export/
+logs/
+backend/data/
+*.db
+*.db-wal
+*.db-shm
+
+# keep the final LoRA adapter, drop intermediate checkpoints
+ml/adapters/**/0*_adapters.safetensors
+
+# confidential problem-statement screenshots (do not publish)
+Pasted*.png
+
+# secrets
+.env

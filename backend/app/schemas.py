@@ -1,0 +1,155 @@
+"""API contract shared with the frontend and Web3 teammates.
+
+Every analysis returns a `Report`. The Web3 registry stores `report_hash`
+(sha256 of the canonical JSON of the report minus the hash field), never the
+raw input.
+"""
+from __future__ import annotations
+
+from enum import Enum
+from typing import Any, Literal
+
+from pydantic import BaseModel, Field
+
+
+class RiskLevel(str, Enum):
+    LOW = "low_risk"                        # no significant malicious indicators in available checks
+    SUSPICIOUS = "suspicious"               # one or more indicators need further investigation
+    HIGH = "high_risk"                      # multiple significant indicators
+    CONFIRMED = "confirmed_malicious"       # authoritative threat intel / validated evidence
+    INCONCLUSIVE = "inconclusive"           # insufficient data or sources unavailable
+
+
+class Severity(str, Enum):
+    INFO = "info"
+    LOW = "low"
+    MEDIUM = "medium"
+    HIGH = "high"
+    CRITICAL = "critical"
+
+
+InputType = Literal["url", "domain", "message"]
+Module = Literal["url", "domain", "redirect", "tls", "headers", "threat_intel", "ml", "message", "correlation"]
+
+
+class AnalyzeRequest(BaseModel):
+    input: str = Field(..., min_length=1, max_length=20_000)
+    type: Literal["auto", "url", "domain", "message"] = "auto"
+
+
+class Finding(BaseModel):
+    id: str                                  # "F1", "F2"... referenced by the explanation
+    module: Module
+    title: str
+    severity: Severity
+    description: str
+    evidence: dict[str, Any] = {}            # raw technical evidence
+    source: str                              # where the evidence came from
+    impact: str | None = None
+    recommendation: str | None = None
+    limitations: str | None = None
+
+
+class CheckStatus(BaseModel):
+    name: str
+    status: Literal["ok", "failed", "skipped", "unavailable"]
+    detail: str | None = None
+
+
+class RedirectHop(BaseModel):
+    url: str
+    status: int | None = None
+    ip: str | None = None
+
+
+class TargetInfo(BaseModel):
+    submitted: str
+    normalized_url: str | None = None
+    final_url: str | None = None
+    registered_domain: str | None = None
+    hostname: str | None = None
+    ip_addresses: list[str] = []
+    redirect_chain: list[RedirectHop] = []
+    domain_created: str | None = None
+    domain_age_days: int | None = None
+    registrar: str | None = None
+    page_title: str | None = None
+
+
+class TLSInfo(BaseModel):
+    https: bool = False
+    valid: bool | None = None
+    subject_cn: str | None = None
+    san: list[str] = []
+    issuer: str | None = None
+    issuer_org: str | None = None
+    not_before: str | None = None
+    not_after: str | None = None
+    days_remaining: int | None = None
+    hostname_match: bool | None = None
+    key_type: str | None = None
+    key_bits: int | None = None
+    signature_algorithm: str | None = None
+    protocol: str | None = None
+    chain: list[dict[str, Any]] = []
+    ct_log_entries: int | None = None
+    verdict: Literal["valid", "suspicious", "potentially_compromised", "unavailable"] = "unavailable"
+
+
+class Indicators(BaseModel):
+    urls: list[str] = []
+    domains: list[str] = []
+    emails: list[str] = []
+    phones: list[str] = []
+    upi_ids: list[str] = []
+
+
+class ModelScore(BaseModel):
+    model: str
+    label: str
+    probability: float
+    details: dict[str, Any] = {}
+
+
+class Correlation(BaseModel):
+    report_id: str
+    shared: list[str]                         # e.g. ["domain:evil.com", "ip:1.2.3.4"]
+    risk_level: RiskLevel
+    analyzed_at: str
+
+
+class Explanation(BaseModel):
+    summary: str
+    key_points: list[str] = []
+    generated_by: str                         # "llm:<model>" or "template"
+
+
+class Report(BaseModel):
+    schema_version: str = "1.0"
+    report_id: str
+    input_type: InputType
+    input: str
+    analyzed_at: str                          # ISO-8601 UTC
+    risk_level: RiskLevel
+    risk_score: int                           # 0-100
+    confidence: float                         # 0-1, evidence coverage
+    findings: list[Finding] = []
+    checks: list[CheckStatus] = []
+    target: TargetInfo | None = None
+    tls: TLSInfo | None = None
+    indicators: Indicators | None = None
+    model_scores: list[ModelScore] = []
+    linked_reports: list[str] = []            # sub-reports for URLs extracted from a message
+    correlations: list[Correlation] = []
+    explanation: Explanation
+    recommendations: list[str] = []
+    limitations: list[str] = []
+    report_hash: str = ""                     # 0x-prefixed sha256 over canonical JSON (excluding this field)
+
+
+class VerifyResponse(BaseModel):
+    report_id: str
+    stored_hash: str
+    recomputed_hash: str
+    provided_hash: str | None = None
+    integrity_ok: bool

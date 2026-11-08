@@ -1,0 +1,78 @@
+{
+  "_about": "Curated list of CA organisations / certificates distrusted by major root programs. Matching is on chain certificates' subject/issuer names. Sources: public root-program announcements (Chrome Root Program, Mozilla CA Program / CCADB, Apple). Verify and extend before production use.",
+  "entries": [
+    {
+      "id": "emudhra-2026",
+      "match": {"name_contains": ["eMudhra", "emSign", "EM OV TLS CA", "EM DV TLS CA", "EM EV TLS CA"]},
+      "severity": "critical",
+      "reason": "eMudhra intermediate CA keys found to be trivially weak (Oct 2026). Chrome blocked the affected TLS intermediates and scheduled removal of the emSign ECC Root CA - G3; Mozilla and Apple also blocked affected certificates. eMudhra announced its exit from the global TLS certificate business.",
+      "since": "2026-10-17",
+      "source": "Public reporting on the October 2026 eMudhra CA incident (Chrome/Mozilla/Apple actions)"
+    },
+    {
+      "id": "entrust-2024",
+      "match": {"name_contains": ["Entrust"]},
+      "severity": "medium",
+      "issued_after": "2024-11-11",
+      "reason": "Chrome distrusts Entrust-issued TLS certificates issued after 11 Nov 2024 after a pattern of compliance failures.",
+      "since": "2024-11-11",
+      "source": "Chrome Root Program announcement, June 2024"
+    },
+    {
+      "id": "trustcor-2022",
+      "match": {"name_contains": ["TrustCor"]},
+      "severity": "high",
+      "reason": "Removed from Mozilla, Chrome and Microsoft root stores over concerns about the operator's ties and conduct.",
+      "since": "2022-11-30",
+      "source": "Mozilla dev-security-policy decision"
+    },
+    {
+      "id": "etugra-2023",
+      "match": {"name_contains": ["E-Tugra", "e-Tugra"]},
+      "severity": "high",
+      "reason": "Removed from root programs after security vulnerabilities were found in the CA's systems.",
+      "since": "2023",
+      "source": "Mozilla / Chrome root program removals"
+    },
+    {
+      "id": "camerfirma-2021",
+      "match": {"name_contains": ["Camerfirma", "AC Camerfirma"]},
+      "severity": "high",
+      "reason": "Distrusted by Chrome and Mozilla after a long series of compliance incidents.",
+      "since": "2021",
+      "source": "Chrome / Mozilla root program decisions"
+    },
+    {
+      "id": "symantec-2018",
+      "match": {"name_contains": ["Symantec", "VeriSign Class 3 Public Primary", "GeoTrust Global CA", "thawte Primary Root CA"]},
+      "severity": "high",
+      "reason": "Legacy Symantec PKI (incl. GeoTrust/Thawte/RapidSSL legacy roots) distrusted by browsers in 2018 after mis-issuance.",
+      "since": "2018",
+      "source": "Chrome / Mozilla Symantec distrust plan"
+    },
+    {
+      "id": "wosign-startcom-2016",
+      "match": {"name_contains": ["WoSign", "StartCom"]},
+      "severity": "high",
+      "reason": "Distrusted after backdated SHA-1 issuance and undisclosed acquisition.",
+      "since": "2016",
+      "source": "Mozilla / Chrome / Apple"
+    },
+    {
+      "id": "cnnic-2015",
+      "match": {"name_contains": ["CNNIC"]},
+      "severity": "high",
+      "reason": "Distrusted after an intermediate was used to issue unauthorised certificates for Google domains.",
+      "since": "2015",
+      "source": "Google / Mozilla"
+    },
+    {
+      "id": "diginotar-2011",
+      "match": {"name_contains": ["DigiNotar"]},
+      "severity": "critical",
+      "reason": "CA compromised in 2011; fraudulent certificates issued for Google and others.",
+      "since": "2011",
+      "source": "All major browsers"
+    }
+  ]
+}

@@ -1,0 +1,453 @@
+{
+  "schema_version": "1.0",
+  "report_id": "5931c9561055",
+  "input_type": "url",
+  "input": "https://www.ucsg365.vercel.app/",
+  "analyzed_at": "2026-11-08T08:11:27+00:00",
+  "risk_level": "confirmed_malicious",
+  "risk_score": 100,
+  "confidence": 0.99,
+  "findings": [
+    {
+      "id": "F1",
+      "module": "threat_intel",
+      "title": "Listed in OpenPhish phishing feed",
+      "severity": "critical",
+      "description": "This exact URL appears in OpenPhish phishing feed as a known phishing/malicious destination.",
+      "evidence": {
+        "matched": "ucsg365.vercel.app",
+        "match_type": "exact URL"
+      },
+      "source": "OpenPhish phishing feed",
+      "impact": "Previously reported and verified as malicious by an external intelligence source.",
+      "recommendation": "Do not open this link or enter any information.",
+      "limitations": null
+    },
+    {
+      "id": "F2",
+      "module": "ml",
+      "title": "AI model: domain resembles phishing infrastructure",
+      "severity": "high",
+      "description": "Our self-hosted System-1 classifier estimates a 100% (calibrated) probability that this hostname is phishing-related.",
+      "evidence": {
+        "host": "ucsg365.vercel.app",
+        "active_signals": [
+          "free_hosting",
+          "max_digit_run"
+        ],
+        "probability": 1.0
+      },
+      "source": "system1-url/host-v1",
+      "impact": null,
+      "recommendation": null,
+      "limitations": "Statistical estimate from the hostname only; not proof on its own."
+    },
+    {
+      "id": "F3",
+      "module": "url",
+      "title": "Page claims to be 'microsoft' but domain is vercel.app",
+      "severity": "high",
+      "description": "Title 'Cuenta de Microsoft - Iniciar sesión' references microsoft, which does not match the site's domain.",
+      "evidence": {
+        "title": "Cuenta de Microsoft - Iniciar sesión",
+        "brands": [
+          "microsoft"
+        ],
+        "registered_domain": "vercel.app"
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "Identity mismatch between the claimed organisation and the actual website.",
+      "recommendation": "Navigate to the organisation's official site directly.",
+      "limitations": null
+    },
+    {
+      "id": "F4",
+      "module": "domain",
+      "title": "Hosted on a free / user-content platform",
+      "severity": "medium",
+      "description": "The site lives on a shared platform (vercel.app) where anyone can publish pages; phishing kits are frequently hosted this way.",
+      "evidence": {
+        "platform": "vercel.app"
+      },
+      "source": "Hosting-platform analysis",
+      "impact": null,
+      "recommendation": null,
+      "limitations": null
+    },
+    {
+      "id": "F5",
+      "module": "url",
+      "title": "Page requests credentials or sensitive data",
+      "severity": "medium",
+      "description": "Found 1 password field(s) and inputs asking for: contraseña passwordinput.",
+      "evidence": {
+        "password_fields": 1,
+        "inputs": [
+          "password:contraseña passwordinput"
+        ]
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "Entering data here gives it to whoever controls this site.",
+      "recommendation": "Only enter credentials on the organisation's official domain.",
+      "limitations": null
+    },
+    {
+      "id": "F6",
+      "module": "headers",
+      "title": "Content-Security-Policy missing",
+      "severity": "low",
+      "description": "Response has no 'content-security-policy' header.",
+      "evidence": {
+        "header": "content-security-policy",
+        "present_headers": [
+          "access-control-allow-origin",
+          "age",
+          "cache-control",
+          "content-disposition",
+          "content-encoding",
+          "content-type",
+          "date",
+          "etag",
+          "last-modified",
+          "server",
+          "strict-transport-security",
+          "transfer-encoding",
+          "x-vercel-cache",
+          "x-vercel-id"
+        ]
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "No browser-enforced restriction on script sources, so XSS has a larger impact.",
+      "recommendation": "Define a Content-Security-Policy restricting script/style sources.",
+      "limitations": "Header checks reflect this single response; other pages may differ."
+    },
+    {
+      "id": "F7",
+      "module": "headers",
+      "title": "X-Content-Type-Options missing",
+      "severity": "low",
+      "description": "Response has no 'x-content-type-options' header.",
+      "evidence": {
+        "header": "x-content-type-options",
+        "present_headers": [
+          "access-control-allow-origin",
+          "age",
+          "cache-control",
+          "content-disposition",
+          "content-encoding",
+          "content-type",
+          "date",
+          "etag",
+          "last-modified",
+          "server",
+          "strict-transport-security",
+          "transfer-encoding",
+          "x-vercel-cache",
+          "x-vercel-id"
+        ]
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "Browsers may MIME-sniff responses into executable content.",
+      "recommendation": "Add 'X-Content-Type-Options: nosniff'.",
+      "limitations": "Header checks reflect this single response; other pages may differ."
+    },
+    {
+      "id": "F8",
+      "module": "headers",
+      "title": "Clickjacking protection missing",
+      "severity": "low",
+      "description": "Neither X-Frame-Options nor CSP frame-ancestors is set.",
+      "evidence": {
+        "header": "x-frame-options"
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "The page can be framed by another site to trick users into clicks.",
+      "recommendation": "Add 'X-Frame-Options: DENY' or CSP 'frame-ancestors'.",
+      "limitations": null
+    },
+    {
+      "id": "F9",
+      "module": "redirect",
+      "title": "JavaScript redirect",
+      "severity": "low",
+      "description": "Script sends the browser to tarjeta.html.",
+      "evidence": {
+        "target": "tarjeta.html"
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": null,
+      "recommendation": null,
+      "limitations": "Detected by static pattern matching; dynamic redirects may be missed."
+    },
+    {
+      "id": "F10",
+      "module": "headers",
+      "title": "Referrer-Policy missing",
+      "severity": "info",
+      "description": "Response has no 'referrer-policy' header.",
+      "evidence": {
+        "header": "referrer-policy",
+        "present_headers": [
+          "access-control-allow-origin",
+          "age",
+          "cache-control",
+          "content-disposition",
+          "content-encoding",
+          "content-type",
+          "date",
+          "etag",
+          "last-modified",
+          "server",
+          "strict-transport-security",
+          "transfer-encoding",
+          "x-vercel-cache",
+          "x-vercel-id"
+        ]
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "Full URLs (possibly with tokens) can leak to third parties via the Referer header.",
+      "recommendation": "Add 'Referrer-Policy: strict-origin-when-cross-origin'.",
+      "limitations": "Header checks reflect this single response; other pages may differ."
+    },
+    {
+      "id": "F11",
+      "module": "headers",
+      "title": "Permissions-Policy missing",
+      "severity": "info",
+      "description": "Response has no 'permissions-policy' header.",
+      "evidence": {
+        "header": "permissions-policy",
+        "present_headers": [
+          "access-control-allow-origin",
+          "age",
+          "cache-control",
+          "content-disposition",
+          "content-encoding",
+          "content-type",
+          "date",
+          "etag",
+          "last-modified",
+          "server",
+          "strict-transport-security",
+          "transfer-encoding",
+          "x-vercel-cache",
+          "x-vercel-id"
+        ]
+      },
+      "source": "Passive inspection of the HTTP response (no exploitation, no active scanning)",
+      "impact": "Embedded content is not restricted from powerful browser features.",
+      "recommendation": "Add a Permissions-Policy limiting camera, microphone, geolocation, etc.",
+      "limitations": "Header checks reflect this single response; other pages may differ."
+    },
+    {
+      "id": "F12",
+      "module": "tls",
+      "title": "Recently issued certificate",
+      "severity": "info",
+      "description": "Certificate issued 7 day(s) ago. Common for new phishing sites, but also for normal renewals.",
+      "evidence": {
+        "host": "ucsg365.vercel.app",
+        "issuer": "WR1",
+        "subject_cn": "*.vercel.app",
+        "not_after": "2027-01-29T11:46:09+00:00",
+        "protocol": "TLSv1.3",
+        "issued_days_ago": 7
+      },
+      "source": "TLS handshake + X.509 parsing",
+      "impact": null,
+      "recommendation": null,
+      "limitations": null
+    },
+    {
+      "id": "F13",
+      "module": "correlation",
+      "title": "Linked to 1 earlier report(s)",
+      "severity": "medium",
+      "description": "Shares infrastructure or indicators with previous reports (1 rated high/confirmed).",
+      "evidence": {
+        "related": [
+          {
+            "report_id": "6ffa88927b01",
+            "shared": [
+              "domain:vercel.app",
+              "ip:216.198.79.3",
+              "host:www.ucsg365.vercel.app",
+              "cert:b780bccea3104338b0f1dfb618d1613104d80c3ba127e19dc9307f2c9c56dfc4"
+            ],
+            "risk_level": "confirmed_malicious",
+            "analyzed_at": "2026-11-08T08:09:08+00:00"
+          }
+        ]
+      },
+      "source": "ThreatScope report history (deterministic indicator matching)",
+      "impact": null,
+      "recommendation": null,
+      "limitations": null
+    }
+  ],
+  "checks": [
+    {
+      "name": "system1_url_model",
+      "status": "ok",
+      "detail": "p(phishing)=1.0"
+    },
+    {
+      "name": "domain_analysis",
+      "status": "ok",
+      "detail": "RDAP ok; Tranco rank not in top 200k"
+    },
+    {
+      "name": "threat_intel",
+      "status": "ok",
+      "detail": "OpenPhish feed (local copy)"
+    },
+    {
+      "name": "website_fetch",
+      "status": "ok",
+      "detail": "HTTP 200, 2 hop(s), 1138 ms"
+    },
+    {
+      "name": "page_and_headers",
+      "status": "ok",
+      "detail": "0 forms, 1 password fields"
+    },
+    {
+      "name": "tls_certificate",
+      "status": "ok",
+      "detail": "TLSv1.3, issuer WR1, revocation good (CRL http://c.pki.goog/wr1/Q3zRDSivM-A.crl), SCTs 2"
+    },
+    {
+      "name": "risk_engine",
+      "status": "ok",
+      "detail": "System-1 URL model p(phishing)=1.00 → +25 | authoritative threat-intelligence match → confirmed_malicious"
+    }
+  ],
+  "target": {
+    "submitted": "https://www.ucsg365.vercel.app/",
+    "normalized_url": "https://www.ucsg365.vercel.app/",
+    "final_url": "https://ucsg365.vercel.app/",
+    "registered_domain": "vercel.app",
+    "hostname": "www.ucsg365.vercel.app",
+    "ip_addresses": [
+      "216.198.79.3"
+    ],
+    "redirect_chain": [
+      {
+        "url": "https://www.ucsg365.vercel.app/",
+        "status": 307,
+        "ip": "216.198.79.3"
+      },
+      {
+        "url": "https://ucsg365.vercel.app/",
+        "status": 200,
+        "ip": "216.198.79.3"
+      }
+    ],
+    "domain_created": "2020-01-28",
+    "domain_age_days": 2476,
+    "registrar": "Tucows Domains Inc",
+    "page_title": "Cuenta de Microsoft - Iniciar sesión"
+  },
+  "tls": {
+    "https": true,
+    "valid": true,
+    "subject_cn": "*.vercel.app",
+    "san": [
+      "*.vercel.app"
+    ],
+    "issuer": "WR1",
+    "issuer_org": "Google Trust Services",
+    "not_before": "2026-10-31T11:46:10+00:00",
+    "not_after": "2027-01-29T11:46:09+00:00",
+    "days_remaining": 82,
+    "hostname_match": true,
+    "key_type": "RSA",
+    "key_bits": 2048,
+    "signature_algorithm": "sha256",
+    "protocol": "TLSv1.3",
+    "chain": [
+      {
+        "subject": "*.vercel.app",
+        "issuer": "WR1",
+        "org": null,
+        "not_after": "2027-01-29",
+        "key": "RSA 2048",
+        "sha256": "b780bccea3104338b0f1dfb618d1613104d80c3ba127e19dc9307f2c9c56dfc4"
+      },
+      {
+        "subject": "WR1",
+        "issuer": "GTS Root R1",
+        "org": "Google Trust Services",
+        "not_after": "2029-02-20",
+        "key": "RSA 2048",
+        "sha256": "b10b6f00e609509e8700f6d34687a2bfce38ea05a8fdf1cdc40c3a2a0d0d0e45"
+      },
+      {
+        "subject": "GTS Root R1",
+        "issuer": "GTS Root R1",
+        "org": "Google Trust Services LLC",
+        "not_after": "2036-06-22",
+        "key": "RSA 4096",
+        "sha256": "d947432abde7b7fa90fc2e6b59101b1280e0e1c7e4e40fa3c6887fff57a7f4cf"
+      }
+    ],
+    "ct_log_entries": null,
+    "verdict": "valid"
+  },
+  "indicators": null,
+  "model_scores": [
+    {
+      "model": "system1-url/host-v1",
+      "label": "phishing",
+      "probability": 1.0,
+      "details": {
+        "host": "ucsg365.vercel.app",
+        "active_signals": [
+          "free_hosting",
+          "max_digit_run"
+        ]
+      }
+    }
+  ],
+  "linked_reports": [],
+  "correlations": [
+    {
+      "report_id": "6ffa88927b01",
+      "shared": [
+        "domain:vercel.app",
+        "ip:216.198.79.3",
+        "host:www.ucsg365.vercel.app",
+        "cert:b780bccea3104338b0f1dfb618d1613104d80c3ba127e19dc9307f2c9c56dfc4"
+      ],
+      "risk_level": "confirmed_malicious",
+      "analyzed_at": "2026-11-08T08:09:08+00:00"
+    }
+  ],
+  "explanation": {
+    "summary": "The website https://www.ucsg365.vercel.app/ is identified as confirmed malicious due to multiple indicators of phishing activity, including being listed in a phishing database, AI-based phishing detection, false claims of being a Microsoft site, and requests for sensitive credentials. It should not be accessed by any user.",
+    "key_points": [
+      "The site is listed in a known phishing database, confirming it is a known malicious destination. [F1]",
+      "An AI model has determined with 100% confidence that this domain is related to phishing activity. [F2]",
+      "The page falsely claims to be a Microsoft login page, which is a common tactic used in phishing attacks. [F3]",
+      "The site is hosted on a public platform where malicious content is frequently shared, increasing the risk of phishing. [F4]",
+      "The page includes password fields and asks for sensitive information, which is a major red flag for phishing. [F5]",
+      "The site lacks essential security headers that protect against common attacks like content injection or clickjacking. [F6, F7, F8]",
+      "The site uses JavaScript to redirect users to another page (tarjeta.html), which could be part of a deceptive or malicious flow. [F9]",
+      "Do not visit or enter any personal information on this website. It is likely a phishing site designed to steal your credentials.",
+      "Report this site to your organization's security team or to the relevant authorities immediately."
+    ],
+    "generated_by": "fallback:qwen3:4b-instruct-2507-q4_K_M"
+  },
+  "recommendations": [
+    "Do not open this link or reply. Report it and delete it.",
+    "Do not open this link or enter any information.",
+    "Navigate to the organisation's official site directly.",
+    "Only enter credentials on the organisation's official domain."
+  ],
+  "limitations": [
+    "Automated checks can miss new or targeted attacks; a low-risk result is not a guarantee of safety.",
+    "A valid HTTPS certificate only proves an encrypted connection, not that the website is legitimate.",
+    "Only passive, non-intrusive checks were performed; no exploitation or active scanning."
+  ],
+  "report_hash": "0x75a01aac55e4e3409f6e184f73747231520bfa5d932f79a1b2f9d87804fdfcc6"
+}

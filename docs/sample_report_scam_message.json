@@ -1,0 +1,301 @@
+{
+  "schema_version": "1.0",
+  "report_id": "31e2234b0d2d",
+  "input_type": "message",
+  "input": "Dear Customer, your SBI YONO account will be blocked today. Update your PAN/KYC immediately at http://sbi-kyc-update.in-verify.co/login",
+  "analyzed_at": "2026-11-08T08:12:24+00:00",
+  "risk_level": "high_risk",
+  "risk_score": 83,
+  "confidence": 0.99,
+  "findings": [
+    {
+      "id": "F1",
+      "module": "url",
+      "title": "Link in-verify.co assessed as high risk",
+      "severity": "high",
+      "description": "Linked report 47ed5ec9b162: AI model: domain resembles phishing infrastructure; Brand name 'sbi' embedded in subdomain; Complex hostname structure",
+      "evidence": {
+        "linked_report": "47ed5ec9b162",
+        "url": "http://sbi-kyc-update.in-verify.co/login",
+        "risk_score": 72
+      },
+      "source": "ThreatScope URL investigation",
+      "impact": null,
+      "recommendation": null,
+      "limitations": null
+    },
+    {
+      "id": "F2",
+      "module": "message",
+      "title": "Uses threats (block, arrest, disconnection)",
+      "severity": "medium",
+      "description": "Evidence: “blocked”",
+      "evidence": {
+        "tactic": "fear_threat",
+        "quote": "blocked",
+        "detected_by": [
+          "rule engine"
+        ]
+      },
+      "source": "rule engine",
+      "impact": null,
+      "recommendation": null,
+      "limitations": null
+    },
+    {
+      "id": "F3",
+      "module": "message",
+      "title": "Asks for personal / KYC / bank information",
+      "severity": "medium",
+      "description": "Evidence: “Update your PAN/KYC”",
+      "evidence": {
+        "tactic": "personal_info_request",
+        "quote": "Update your PAN/KYC",
+        "detected_by": [
+          "rule engine"
+        ]
+      },
+      "source": "rule engine",
+      "impact": null,
+      "recommendation": null,
+      "limitations": null
+    },
+    {
+      "id": "F4",
+      "module": "message",
+      "title": "Claims to be from SBI",
+      "severity": "medium",
+      "description": "The sender identity cannot be verified from the message itself.",
+      "evidence": {
+        "entity": "SBI",
+        "scam_type": "kyc_update"
+      },
+      "source": "System-2 model (fallback:qwen3:4b-instruct-2507-q4_K_M)",
+      "impact": null,
+      "recommendation": null,
+      "limitations": null
+    },
+    {
+      "id": "F5",
+      "module": "message",
+      "title": "Creates time pressure",
+      "severity": "low",
+      "description": "Evidence: “immediately”",
+      "evidence": {
+        "tactic": "urgency",
+        "quote": "immediately",
+        "detected_by": [
+          "rule engine"
+        ]
+      },
+      "source": "rule engine",
+      "impact": null,
+      "recommendation": null,
+      "limitations": null
+    },
+    {
+      "id": "F6",
+      "module": "ml",
+      "title": "Wording resembles known scam messages",
+      "severity": "low",
+      "description": "System-1 language model: 100% similarity to scam/spam wording (key terms: kyc, your, blocked, at urltoken).",
+      "evidence": {
+        "top_terms": [
+          "kyc",
+          "your",
+          "blocked",
+          "at urltoken",
+          "account will",
+          "update your"
+        ],
+        "probability": 0.997
+      },
+      "source": "system1-msg/msg-v1",
+      "impact": null,
+      "recommendation": null,
+      "limitations": "Language similarity is not proof of fraud."
+    },
+    {
+      "id": "F7",
+      "module": "correlation",
+      "title": "Linked to 4 earlier report(s)",
+      "severity": "medium",
+      "description": "Shares infrastructure or indicators with previous reports (4 rated high/confirmed).",
+      "evidence": {
+        "related": [
+          {
+            "report_id": "cdc2315abe36",
+            "shared": [
+              "domain:in-verify.co",
+              "similar_wording:0.63"
+            ],
+            "risk_level": "high_risk",
+            "analyzed_at": "2026-11-08T08:06:32+00:00"
+          },
+          {
+            "report_id": "1d09ca02ec76",
+            "shared": [
+              "domain:in-verify.co",
+              "similar_wording:1.0"
+            ],
+            "risk_level": "high_risk",
+            "analyzed_at": "2026-11-08T08:10:01+00:00"
+          },
+          {
+            "report_id": "026c65552c90",
+            "shared": [
+              "domain:in-verify.co"
+            ],
+            "risk_level": "high_risk",
+            "analyzed_at": "2026-11-08T08:06:28+00:00"
+          },
+          {
+            "report_id": "dafa901502bf",
+            "shared": [
+              "domain:in-verify.co"
+            ],
+            "risk_level": "high_risk",
+            "analyzed_at": "2026-11-08T08:09:58+00:00"
+          }
+        ]
+      },
+      "source": "ThreatScope report history (deterministic indicator matching)",
+      "impact": null,
+      "recommendation": null,
+      "limitations": null
+    }
+  ],
+  "checks": [
+    {
+      "name": "system1_message_model",
+      "status": "ok",
+      "detail": "p=0.997"
+    },
+    {
+      "name": "system2_reasoning_model",
+      "status": "ok",
+      "detail": "fallback:qwen3:4b-instruct-2507-q4_K_M, 2656 ms, dropped 0 ungrounded quotes"
+    },
+    {
+      "name": "rule_engine",
+      "status": "ok",
+      "detail": "3 tactic(s) matched"
+    },
+    {
+      "name": "link_analysis",
+      "status": "ok",
+      "detail": "1 link(s) investigated"
+    },
+    {
+      "name": "risk_engine",
+      "status": "ok",
+      "detail": "rule tactics=['fear_threat', 'personal_info_request', 'urgency']; S2 verdict=scam tactics=['authority_impersonation', 'link_click', 'personal_info_request', 'urgency']; S1 p=1.00 | high-risk link combined with scam behaviour"
+    }
+  ],
+  "target": null,
+  "tls": null,
+  "indicators": {
+    "urls": [
+      "http://sbi-kyc-update.in-verify.co/login"
+    ],
+    "domains": [
+      "sbi-kyc-update.in-verify.co"
+    ],
+    "emails": [],
+    "phones": [],
+    "upi_ids": []
+  },
+  "model_scores": [
+    {
+      "model": "system1-msg/msg-v1",
+      "label": "scam_like_language",
+      "probability": 0.997,
+      "details": {
+        "top_terms": [
+          "kyc",
+          "your",
+          "blocked",
+          "at urltoken",
+          "account will",
+          "update your"
+        ]
+      }
+    },
+    {
+      "model": "fallback:qwen3:4b-instruct-2507-q4_K_M",
+      "label": "scam",
+      "probability": 1.0,
+      "details": {
+        "scam_type": "kyc_update",
+        "impersonated_entity": "SBI",
+        "tactics": [
+          "authority_impersonation",
+          "link_click",
+          "personal_info_request",
+          "urgency"
+        ],
+        "requested_action": "Update PAN/KYC"
+      }
+    }
+  ],
+  "linked_reports": [
+    "47ed5ec9b162"
+  ],
+  "correlations": [
+    {
+      "report_id": "cdc2315abe36",
+      "shared": [
+        "domain:in-verify.co",
+        "similar_wording:0.63"
+      ],
+      "risk_level": "high_risk",
+      "analyzed_at": "2026-11-08T08:06:32+00:00"
+    },
+    {
+      "report_id": "1d09ca02ec76",
+      "shared": [
+        "domain:in-verify.co",
+        "similar_wording:1.0"
+      ],
+      "risk_level": "high_risk",
+      "analyzed_at": "2026-11-08T08:10:01+00:00"
+    },
+    {
+      "report_id": "026c65552c90",
+      "shared": [
+        "domain:in-verify.co"
+      ],
+      "risk_level": "high_risk",
+      "analyzed_at": "2026-11-08T08:06:28+00:00"
+    },
+    {
+      "report_id": "dafa901502bf",
+      "shared": [
+        "domain:in-verify.co"
+      ],
+      "risk_level": "high_risk",
+      "analyzed_at": "2026-11-08T08:09:58+00:00"
+    }
+  ],
+  "explanation": {
+    "summary": "The message claims the account will be blocked and urges immediate action to update KYC, which is a common scam tactic to trick users into visiting a fake or malicious website. Do not enter passwords, OTPs, card or bank details. Verify through the organisation's official app or number.",
+    "key_points": [
+      "[F1] Link in-verify.co assessed as high risk — Linked report 47ed5ec9b162: AI model: domain resembles phishing infrastructure; Brand name 'sbi' embedded in subdomain; Complex hostname structure",
+      "[F2] Uses threats (block, arrest, disconnection) — Evidence: “blocked”",
+      "[F3] Asks for personal / KYC / bank information — Evidence: “Update your PAN/KYC”",
+      "[F4] Claims to be from SBI — The sender identity cannot be verified from the message itself.",
+      "[F5] Creates time pressure — Evidence: “immediately”",
+      "[F6] Wording resembles known scam messages — System-1 language model: 100% similarity to scam/spam wording (key terms: kyc, your, blocked, at urltoken)."
+    ],
+    "generated_by": "fallback:qwen3:4b-instruct-2507-q4_K_M"
+  },
+  "recommendations": [
+    "Do not enter passwords, OTPs, card or bank details. Verify through the organisation's official app or number.",
+    "Never share OTPs, PINs or passwords — no genuine bank or company asks for them."
+  ],
+  "limitations": [
+    "Automated checks can miss new or targeted attacks; a low-risk result is not a guarantee of safety.",
+    "Message sender identity cannot be verified from text alone."
+  ],
+  "report_hash": "0x0f44fd0c2e3d25e5568bbc98f6845d23c9e2ee62008809c38722e41bdc86d36e"
+}
