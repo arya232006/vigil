@@ -80,6 +80,23 @@ def main():
             L += ["**Explanation task** (held-out findings → plain-language explanation):\n",
                   "| n | JSON valid | Key points citing a finding | All citations refer to real findings |", "|---|---|---|---|",
                   f"| {r['n']} | {pct(r['json_valid_rate'])} | {pct(r['points_with_citation'])} | {pct(r['citations_all_valid'])} |", ""]
+    r2 = load("s2_round2_comparison.json")
+    if r2:
+        fh_c, fh_r = r2["current"]["fresh_holdout"], r2["round2"]["fresh_holdout"]
+        ot_c, ot_r = r2["current"]["original_test"], r2["round2"]["original_test"]
+        L += ["## Experiment: round-2 fine-tune (not deployed)\n",
+              "Targeted extra data for measured weak spots (urgent-but-legitimate notices, Hinglish, real bank/OTP alerts), "
+              "weighted ×2. Judged on an independently written 40-message holdout plus the original test set.\n",
+              "| | Current (deployed) | Round 2 |", "|---|---|---|",
+              f"| Fresh holdout: legit false positives | {pct(fh_c['legit_false_positive_rate'])} | {pct(fh_r['legit_false_positive_rate'])} |",
+              f"| Fresh holdout: scam recall | {pct(fh_c['scam_recall'])} | {pct(fh_r['scam_recall'])} |",
+              f"| Original test: legit false positives | {pct(ot_c['legit_false_positive_rate'])} | {pct(ot_r['legit_false_positive_rate'])} |",
+              f"| Original test: scam recall | {pct(ot_c['scam_recall'])} | {pct(ot_r['scam_recall'])} |",
+              "",
+              "Not deployed: round 2 over-corrected toward \"legitimate\" and newly missed real scams the current model "
+              "catches (prompt-injection KYC/OTP scams, \"new number, send money by UPI\" family-emergency scams). For a "
+              "security tool missed scams cost more than mild false alarms. Next step: rebalance the extra data (weight ×1 "
+              "plus matching hard scams).", ""]
     L += ["## Limitations\n",
           "- Host-only URL model cannot recognise compromised legitimate sites; threat intel, page checks and TLS cover that.",
           "- Training data is mostly English (plus Hinglish variants); other languages are less reliable. Known error: an urgent "

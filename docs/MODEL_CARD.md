@@ -50,6 +50,19 @@ Test labels for SMS/email come from the datasets; seed-family labels are hand-wr
 |---|---|---|---|
 | 27 | 96.3% | 100.0% | 100.0% |
 
+## Experiment: round-2 fine-tune (not deployed)
+
+Targeted extra data for measured weak spots (urgent-but-legitimate notices, Hinglish, real bank/OTP alerts), weighted ×2. Judged on an independently written 40-message holdout plus the original test set.
+
+| | Current (deployed) | Round 2 |
+|---|---|---|
+| Fresh holdout: legit false positives | 20.8% | 4.2% |
+| Fresh holdout: scam recall | 93.8% | 93.8% |
+| Original test: legit false positives | 9.7% | 0.0% |
+| Original test: scam recall | 93.3% | 85.4% |
+
+Not deployed: round 2 over-corrected toward "legitimate" and newly missed real scams the current model catches (prompt-injection KYC/OTP scams, "new number, send money by UPI" family-emergency scams). For a security tool missed scams cost more than mild false alarms. Next step: rebalance the extra data (weight ×1 plus matching hard scams).
+
 ## Limitations
 
 - Host-only URL model cannot recognise compromised legitimate sites; threat intel, page checks and TLS cover that.

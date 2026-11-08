@@ -1,0 +1,74 @@
+{
+  "current": {
+    "fresh_holdout": {
+      "model": "current",
+      "n": 40,
+      "json_valid_rate": 1.0,
+      "binary_accuracy": 0.85,
+      "three_class_accuracy": 0.85,
+      "scam_recall": 0.938,
+      "legit_false_positive_rate": 0.208,
+      "evidence_grounding_rate": 1.0,
+      "avg_latency_ms": 638,
+      "hybrid": {
+        "legit_flagged": 0.25,
+        "legit_high": 0.0,
+        "positives_flagged": 0.938,
+        "scams_high": 0.938
+      }
+    },
+    "original_test": {
+      "model": "current",
+      "n": 169,
+      "json_valid_rate": 1.0,
+      "binary_accuracy": 0.929,
+      "three_class_accuracy": 0.825,
+      "scam_recall": 0.933,
+      "legit_false_positive_rate": 0.097,
+      "evidence_grounding_rate": 0.987,
+      "avg_latency_ms": 627,
+      "hybrid": {
+        "legit_flagged": 0.113,
+        "legit_high": 0.016,
+        "positives_flagged": 0.963,
+        "scams_high": 0.762
+      }
+    }
+  },
+  "round2": {
+    "fresh_holdout": {
+      "model": "round2",
+      "n": 40,
+      "json_valid_rate": 1.0,
+      "binary_accuracy": 0.95,
+      "three_class_accuracy": 0.95,
+      "scam_recall": 0.938,
+      "legit_false_positive_rate": 0.042,
+      "evidence_grounding_rate": 0.969,
+      "avg_latency_ms": 615,
+      "hybrid": {
+        "legit_flagged": 0.083,
+        "legit_high": 0.0,
+        "positives_flagged": 0.938,
+        "scams_high": 0.875
+      }
+    },
+    "original_test": {
+      "model": "round2",
+      "n": 169,
+      "json_valid_rate": 1.0,
+      "binary_accuracy": 0.882,
+      "three_class_accuracy": 0.811,
+      "scam_recall": 0.854,
+      "legit_false_positive_rate": 0.0,
+      "evidence_grounding_rate": 0.978,
+      "avg_latency_ms": 654,
+      "hybrid": {
+        "legit_flagged": 0.016,
+        "legit_high": 0.0,
+        "positives_flagged": 0.897,
+        "scams_high": 0.683
+      }
+    }
+  }
+}
