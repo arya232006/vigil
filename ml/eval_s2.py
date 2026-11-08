@@ -83,6 +83,9 @@ def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--n-other", type=int, default=70)
     ap.add_argument("--skip-base", action="store_true")
+    ap.add_argument("--adapter", default=str(ROOT / "adapters/s2"))
+    ap.add_argument("--out", default=str(ART / "s2_metrics.json"))
+    ap.add_argument("--skip-explain", action="store_true")
     a = ap.parse_args()
     gt_rows = [json.loads(l) for l in (ROOT / "data/s2/test_gt.jsonl").read_text().splitlines()]
     seeds = [r for r in gt_rows if r["source"] in ("seed", "variant")]
@@ -112,7 +115,7 @@ def main():
         pb, lb = run_mlx(base, None, rows)
         results.append(score("qwen3-1.7b base (no fine-tune)", pb, gts, texts, lb))
         print(results[-1], flush=True)
-    ps, ls = run_mlx(base, str(ROOT / "adapters/s2"), rows)
+    ps, ls = run_mlx(base, a.adapter, rows)
     results.append(score("threatscope-s2 (qwen3-1.7b + our LoRA)", ps, gts, texts, ls))
     print(results[-1], flush=True)
 
@@ -152,10 +155,14 @@ def main():
 
     # Explanation task: held-out (validation) explanation examples
     from mlx_lm import generate, load
+    if a.skip_explain:
+        ex_rows_skip = True
+    else:
+        ex_rows_skip = False
     from app.ml.s2_prompt import EXPLAIN_SYSTEM
     ex_rows = [json.loads(l) for l in (ROOT / "data/s2/valid.jsonl").read_text().splitlines()]
-    ex_rows = [r for r in ex_rows if r["messages"][0]["content"] == EXPLAIN_SYSTEM]
-    model, tok = load(base, adapter_path=str(ROOT / "adapters/s2"))
+    ex_rows = [r for r in ex_rows if r["messages"][0]["content"] == EXPLAIN_SYSTEM] if not ex_rows_skip else []
+    model, tok = load(base, adapter_path=a.adapter)
     ok_json = cited = points = valid_cites = 0
     for r in ex_rows:
         user = r["messages"][1]["content"]
@@ -181,7 +188,8 @@ def main():
     out = {"evaluated_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()), "n": len(rows),
            "held_out": "whole seed families never seen in training + random SMS/email sample",
            "hard_negatives_n": len(hn), "results": results}
-    (ART / "s2_metrics.json").write_text(json.dumps(out, indent=2))
+    out["adapter"] = a.adapter
+    Path(a.out).write_text(json.dumps(out, indent=2))
     print(json.dumps(out, indent=2))
 
 

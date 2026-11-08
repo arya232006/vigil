@@ -6,7 +6,7 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 OUT="${OUT:-ml/export/threatscope-s2-fused}"
-.venv/bin/python -m mlx_lm fuse --model ml/models/qwen3-1.7b-4bit --adapter-path ml/adapters/s2 --save-path "$OUT" --dequantize
+.venv/bin/python -m mlx_lm fuse --model ml/models/qwen3-1.7b-4bit --adapter-path "${ADAPTER:-ml/adapters/final}" --save-path "$OUT" --dequantize
 cat > ml/export/Modelfile <<MF
 FROM $(pwd)/$OUT
 PARAMETER temperature 0

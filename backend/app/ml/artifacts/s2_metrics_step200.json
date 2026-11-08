@@ -1,0 +1,67 @@
+{
+  "evaluated_at": "2026-11-08T08:55:25Z",
+  "n": 169,
+  "held_out": "whole seed families never seen in training + random SMS/email sample",
+  "hard_negatives_n": 27,
+  "results": [
+    {
+      "model": "system1-msg (TF-IDF LR)",
+      "n": 169,
+      "json_valid_rate": 1.0,
+      "binary_accuracy": 0.964,
+      "three_class_accuracy": 0.839,
+      "scam_recall": 0.944,
+      "legit_false_positive_rate": 0.0,
+      "evidence_grounding_rate": 0.0,
+      "avg_latency_ms": 0
+    },
+    {
+      "model": "teacher qwen3-4b (labels, offline)",
+      "n": 169,
+      "json_valid_rate": 1.0,
+      "binary_accuracy": 1.0,
+      "three_class_accuracy": 0.986,
+      "scam_recall": 1.0,
+      "legit_false_positive_rate": 0.0,
+      "evidence_grounding_rate": 1.0,
+      "avg_latency_ms": 0
+    },
+    {
+      "model": "threatscope-s2 (qwen3-1.7b + our LoRA)",
+      "n": 169,
+      "json_valid_rate": 1.0,
+      "binary_accuracy": 0.905,
+      "three_class_accuracy": 0.825,
+      "scam_recall": 0.921,
+      "legit_false_positive_rate": 0.145,
+      "evidence_grounding_rate": 0.981,
+      "avg_latency_ms": 728
+    },
+    {
+      "model": "risk engine: rules + System-1 (no System-2)",
+      "n": 169,
+      "binary_accuracy": 0.604,
+      "three_class_accuracy": 0.538,
+      "scam_recall": 0.449,
+      "legit_false_positive_rate": 0.016,
+      "avg_latency_ms": 0
+    },
+    {
+      "model": "risk engine: rules + System-1 + threatscope-s2 (full hybrid)",
+      "n": 169,
+      "binary_accuracy": 0.923,
+      "three_class_accuracy": 0.643,
+      "scam_recall": 0.966,
+      "legit_false_positive_rate": 0.161,
+      "avg_latency_ms": 0
+    },
+    {
+      "model": "threatscope-s2 explanation task",
+      "n": 0,
+      "json_valid_rate": 0.0,
+      "points_with_citation": 0.0,
+      "citations_all_valid": 0.0
+    }
+  ],
+  "adapter": "adapters/s2_step200"
+}

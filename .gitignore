@@ -14,11 +14,15 @@ backend/data/
 *.db-wal
 *.db-shm
 
-# keep the final LoRA adapter, drop intermediate checkpoints
-ml/adapters/**/0*_adapters.safetensors
+# keep only the selected final LoRA adapter (~20 MB); drop checkpoints and candidates
+ml/adapters/*
+!ml/adapters/final/
 
 # confidential problem-statement screenshots (do not publish)
 Pasted*.png
 
 # secrets
 .env
+
+# agent worktrees
+.claude/
