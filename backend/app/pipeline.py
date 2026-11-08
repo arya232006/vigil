@@ -282,21 +282,34 @@ def analyze_message(text: str) -> Report:
     inds: Indicators = extract_indicators(text)
     rules = detect_tactics(text)
 
-    f_s2 = POOL.submit(system2.analyze_message, text)
-    f_s1 = POOL.submit(system1.msg_score, text)
     f_links = [POOL.submit(analyze_url, u, "url", 1) for u in inds.urls[:3]]
 
+    # System-1 first (milliseconds); the router decides whether System-2 reasoning is needed.
     s1 = None
     try:
-        s1 = f_s1.result()
+        s1 = system1.msg_score(text)
         checks.append(CheckStatus(name="system1_message_model", status="ok", detail=f"p={s1.probability}"))
     except Exception as e:
         checks.append(CheckStatus(name="system1_message_model", status="failed", detail=str(e)[:200]))
+    has_ioc = bool(inds.urls or inds.emails or inds.phones or inds.upi_ids)
+    tau = system2.router_threshold()
+    fast_path = (system2.ROUTER_ENABLED and tau is not None and s1 is not None and not rules and not has_ioc
+                 and s1.probability < tau)
+    checks.append(CheckStatus(name="router", status="ok", detail=(
+        f"fast path: System-1 p={s1.probability:.4f} < {tau}, no rule tactics, no links/contacts → System-2 not needed"
+        if fast_path else "System-2 invoked (risk signals present or System-1 not confident)")))
 
-    s2, s2_model, s2_ms = f_s2.result()
-    checks.append(CheckStatus(name="system2_reasoning_model", status="ok" if s2 else "failed",
-                              detail=f"{s2_model}, {s2_ms} ms" + (f", dropped {s2.get('ungrounded_evidence_dropped', 0)} "
-                                                                  "ungrounded quotes" if s2 else "")))
+    if fast_path:
+        s2, s2_model, s2_ms = None, "router: fast path", 0
+        checks.append(CheckStatus(name="system2_reasoning_model", status="skipped",
+                                  detail="not needed: confidently benign by System-1 and rules"))
+    else:
+        s2, s2_model, s2_ms = system2.analyze_message(text)
+        checks.append(CheckStatus(name="system2_reasoning_model", status="ok" if s2 else "failed",
+                                  detail=f"{s2_model}, {s2_ms} ms" + (
+                                      f", calibrated p(unsafe)={s2.get('p_unsafe')}"
+                                      f", dropped {s2.get('ungrounded_evidence_dropped', 0)} ungrounded quotes"
+                                      if s2 else "")))
     checks.append(CheckStatus(name="rule_engine", status="ok", detail=f"{len(rules)} tactic(s) matched"))
 
     sub_reports = []
@@ -383,10 +396,11 @@ def analyze_message(text: str) -> Report:
                     risk_score=score, confidence=conf, findings=findings, checks=checks, indicators=inds,
                     model_scores=[m for m in [s1] if m] + ([] if not s2 else [
                         ModelScore(
-                            model=s2_model, label=s2["verdict"], probability=1.0 if s2["verdict"] == "scam" else 0.5
-                            if s2["verdict"] == "suspicious" else 0.0,
+                            model=s2_model, label=s2["verdict"],
+                            probability=s2["p_unsafe"] if s2.get("p_unsafe") is not None else
+                            (1.0 if s2["verdict"] == "scam" else 0.5 if s2["verdict"] == "suspicious" else 0.0),
                             details={k: s2.get(k) for k in ("scam_type", "impersonated_entity", "tactics",
-                                                            "requested_action")})]),
+                                                            "requested_action", "verdict_probs")})]),
                     linked_reports=[r.report_id for r in sub_reports], explanation=expl,
                     recommendations=[LEVEL_ADVICE[level]] + (["Never share OTPs, PINs or passwords — no genuine bank or "
                                                               "company asks for them."] if level != RiskLevel.LOW else []),

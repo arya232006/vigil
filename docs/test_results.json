@@ -10,15 +10,15 @@
     "actual": "confirmed_malicious",
     "score": 100,
     "confidence": 0.99,
-    "seconds": 7.5,
+    "seconds": 5.1,
     "pass": true,
     "top_findings": [
       "F1 Listed in OpenPhish phishing feed",
       "F2 AI model: domain resembles phishing infrastructure",
       "F3 Page claims to be 'microsoft' but domain is vercel.app"
     ],
-    "report_id": "a063a4a2bdda",
-    "report_hash": "0x39ce6ee3d9cb1780020af1f82e92ebe482b0496153f83e5335f5209335d332d7",
+    "report_id": "2c54d9e19f1e",
+    "report_hash": "0x00dde8af19d46d541ca6fb5c9f9098f7272c22c5fb55125de7e8208f4eb944dd",
     "explained_by": "s2:threatscope-s2-qwen3-1.7b-lora"
   },
   {
@@ -34,15 +34,15 @@
     "actual": "high_risk",
     "score": 100,
     "confidence": 0.99,
-    "seconds": 6.5,
+    "seconds": 8.0,
     "pass": true,
     "top_findings": [
       "F1 AI model: domain resembles phishing infrastructure",
       "F2 Certificate failed validation",
       "F3 Hostname does not match certificate"
     ],
-    "report_id": "e7b9884639be",
-    "report_hash": "0x8b3e154a5b4fe540e0dbaa0cdc620afded33af444898f07d152044dd17d78df8",
+    "report_id": "eadeb0dc5b47",
+    "report_hash": "0xee3c5b56e548b261da560db10c933acd59de2a92f6481b8d3a8db04ef36ab301",
     "explained_by": "s2:threatscope-s2-qwen3-1.7b-lora"
   },
   {
@@ -58,15 +58,15 @@
     "actual": "high_risk",
     "score": 93,
     "confidence": 0.99,
-    "seconds": 6.9,
+    "seconds": 10.4,
     "pass": true,
     "top_findings": [
       "F1 Certificate has been revoked",
       "F2 AI model: domain resembles phishing infrastructure",
       "F3 HSTS missing"
     ],
-    "report_id": "58d428dcc4f6",
-    "report_hash": "0xa0c81f30f24404c0ccea4e365e812a855ca185f38a055d5b2759abe42da0e422",
+    "report_id": "9e3b91f1a02c",
+    "report_hash": "0xa6ca4c6b557577f094ffc205f93b0890ebb8492476bb9d89fd1540357be9d55b",
     "explained_by": "s2:threatscope-s2-qwen3-1.7b-lora"
   },
   {
@@ -82,15 +82,15 @@
     "actual": "high_risk",
     "score": 68,
     "confidence": 0.85,
-    "seconds": 5.9,
+    "seconds": 5.8,
     "pass": true,
     "top_findings": [
       "F1 Certificate failed validation",
       "F2 Certificate expired",
       "F3 HSTS missing"
     ],
-    "report_id": "a0974ef2983c",
-    "report_hash": "0x57564741c81493e56be7227522b2804fe51cc3119f89078905221099eb0503f8",
+    "report_id": "ac7148620a9d",
+    "report_hash": "0xaa9225f6ee11126f166cbe1edf5864f755eb7c5d03cfb6a4c495151be55aa66f",
     "explained_by": "s2:threatscope-s2-qwen3-1.7b-lora"
   },
   {
@@ -110,10 +110,10 @@
     "pass": true,
     "top_findings": [
       "F1 AI model: domain resembles phishing infrastructure",
-      "F4 Linked to 5 earlier report(s)"
+      "F4 Linked to 6 earlier report(s)"
     ],
-    "report_id": "16cfa72b043c",
-    "report_hash": "0x4f95ea095f5b9086d88e8db89185b5a664fdab3b3b31c018e40756b1b0da581f",
+    "report_id": "23906eacfc21",
+    "report_hash": "0x4c47a2988c8c694e89d062984d87e706bd79c44049f54dc91ed853a08f3b641d",
     "explained_by": "s2:threatscope-s2-qwen3-1.7b-lora"
   },
   {
@@ -128,15 +128,15 @@
     "actual": "high_risk",
     "score": 84,
     "confidence": 0.99,
-    "seconds": 1.2,
+    "seconds": 1.3,
     "pass": true,
     "top_findings": [
       "F1 Link in-verify.co assessed as high risk",
       "F2 Uses threats (block, arrest, disconnection)",
       "F3 Asks for personal / KYC / bank information"
     ],
-    "report_id": "3cabf3c0ea1c",
-    "report_hash": "0x4f49395387e4421113e084f98c38f77d7d06b1f7c5c7a8919ac3011f1d97abee",
+    "report_id": "3472a7a61c30",
+    "report_hash": "0x7f1d2ce21117c342eb431d9dbc86aa63e8c099922f66390b016b1813a8fb7b1c",
     "explained_by": "s2:threatscope-s2-qwen3-1.7b-lora"
   },
   {
@@ -151,15 +151,15 @@
     "actual": "high_risk",
     "score": 80,
     "confidence": 0.99,
-    "seconds": 1.0,
+    "seconds": 1.1,
     "pass": true,
     "top_findings": [
       "F1 Demands an upfront fee to release money/prize/job",
       "F2 Requests a payment",
       "F3 Claims to be from Amazon"
     ],
-    "report_id": "e261b1360c0f",
-    "report_hash": "0x0a785da9ad688255dfd5f0f8ad342669c23ebe7339aa0a99839e1493dcdc04d6",
+    "report_id": "b3a1a79f5fb5",
+    "report_hash": "0x11e67cbac17ab24fe4e17a6470eb19b3529bfff832f31dec9179ce2260c6cf52",
     "explained_by": "s2:threatscope-s2-qwen3-1.7b-lora"
   },
   {
@@ -174,15 +174,15 @@
     "actual": "high_risk",
     "score": 100,
     "confidence": 0.99,
-    "seconds": 1.0,
+    "seconds": 1.1,
     "pass": true,
     "top_findings": [
       "F1 Contains instructions aimed at AI/security tools",
       "F2 Asks for an OTP / verification code",
       "F3 Asks to install remote-access software"
     ],
-    "report_id": "e8674318b003",
-    "report_hash": "0x7c8afdede028655908699ad5952eb6735181207d50c4611acf87c48d94cf82a2",
+    "report_id": "98558ac60e5e",
+    "report_hash": "0x8d551e7540750ce489e4f4508b02b49ad860b5c8d97da448ce31dcd05331f9bd",
     "explained_by": "s2:threatscope-s2-qwen3-1.7b-lora"
   },
   {
@@ -199,8 +199,8 @@
     "seconds": 4.8,
     "pass": true,
     "top_findings": [],
-    "report_id": "bfd33a103ef8",
-    "report_hash": "0x3bac77a676d35993517be090740f908c0fc8f04b4452da3d53000e5f1b3b1d11",
+    "report_id": "f3a0b8e55d02",
+    "report_hash": "0xc7ac905df16cd8e04140ba0599a8b54b1961626eed1132d96d4516c95cd175ff",
     "explained_by": "s2:threatscope-s2-qwen3-1.7b-lora"
   },
   {
@@ -214,11 +214,11 @@
     "actual": "low_risk",
     "score": 0,
     "confidence": 0.99,
-    "seconds": 3.8,
+    "seconds": 7.9,
     "pass": true,
     "top_findings": [],
-    "report_id": "27d2bd56b61e",
-    "report_hash": "0x91ef88cea1b5a51e386a71b4f81038b7328b9055d58a161f33386f13f7f3e923",
+    "report_id": "5da9f6b15cb4",
+    "report_hash": "0xaafdd5592944dfdfecfde2c545fe1ec350a685e6e972a188a39c93834f6ff949",
     "explained_by": "s2:threatscope-s2-qwen3-1.7b-lora"
   },
   {
@@ -234,11 +234,11 @@
     "actual": "low_risk",
     "score": 0,
     "confidence": 0.8,
-    "seconds": 14.3,
+    "seconds": 13.4,
     "pass": true,
     "top_findings": [],
-    "report_id": "b995d8229b57",
-    "report_hash": "0x6caac552095fe4eead6168ea2c1f522824c93205979507b11d65beb8945bc66d",
+    "report_id": "5e50c0949047",
+    "report_hash": "0xd6af14521d142979e078a7fd3bfb166c8dc8496c2532cd85390cc8c0238ec7aa",
     "explained_by": "fallback:qwen3:4b-instruct-2507-q4_K_M"
   },
   {
@@ -252,14 +252,14 @@
     "actual": "low_risk",
     "score": 0,
     "confidence": 0.99,
-    "seconds": 0.7,
+    "seconds": 0.1,
     "pass": true,
     "top_findings": [
-      "F1 Linked to 5 earlier report(s)"
+      "F1 Linked to 6 earlier report(s)"
     ],
-    "report_id": "db6664397288",
-    "report_hash": "0x722dd00150bee4bf466ffa9113d3afd0fbac54414428272402ef55dcc090431c",
-    "explained_by": "s2:threatscope-s2-qwen3-1.7b-lora"
+    "report_id": "10dd2182f892",
+    "report_hash": "0x4e7bedb095749787fda44d9e1d574dfb2a2fb71ef3255a879dbd51c771d3724a",
+    "explained_by": "template"
   },
   {
     "id": "B5",
@@ -272,11 +272,11 @@
     "actual": "low_risk",
     "score": 8,
     "confidence": 0.99,
-    "seconds": 0.6,
+    "seconds": 0.7,
     "pass": true,
     "top_findings": [],
-    "report_id": "c68562b20abe",
-    "report_hash": "0xe70b4c9b455a3dc8f52675028011ad1d4d119f8a9ab5fc24e44833d11df762c3",
+    "report_id": "5f8382f2e559",
+    "report_hash": "0xefc24d105d8cda27fdb22d12ff71077888694c5aadf0bbbce628a07f43a6db84",
     "explained_by": "s2:threatscope-s2-qwen3-1.7b-lora"
   },
   {
@@ -290,11 +290,11 @@
     "actual": "low_risk",
     "score": 0,
     "confidence": 0.99,
-    "seconds": 0.7,
+    "seconds": 0.1,
     "pass": true,
     "top_findings": [],
-    "report_id": "008253ac120e",
-    "report_hash": "0x8ea6383518af5aa55d832256cdc08849733363b4f06c710dadf50526cf93781d",
-    "explained_by": "s2:threatscope-s2-qwen3-1.7b-lora"
+    "report_id": "2a42b5c96daa",
+    "report_hash": "0x1381b73c1f171aaeb8ee899fc970807b2614f34caf2ca51e02d69ccefbaec611",
+    "explained_by": "template"
   }
 ]

@@ -22,7 +22,7 @@ reasoning model for intent and explanation.
 | Output | label + calibrated probability | typed JSON: verdict, scam_type, impersonated_entity, tactics, evidence quotes, requested_action, explanation · grounded explanations of findings citing finding ids |
 | Latency | < 5 ms, CPU | ~1–2 s on Apple Silicon |
 | Size | ~10 MB | ~1 GB (4-bit) |
-| Role | Every request; ML evidence in URL reports; "language similarity" signal for messages | Message intent (e.g. "do **not** share your OTP" vs "share the OTP") and plain-language explanations |
+| Role | Every request; ML evidence in URL reports; "language similarity" signal for messages; **router**: confidently benign messages (no tactics, no links/contacts, p below a validation-chosen threshold) skip System-2 | Message intent (e.g. "do **not** share your OTP" vs "share the OTP") and plain-language explanations; returns a **calibrated p(unsafe)** from its verdict-token probability (Platt scaling) |
 
 ### Training data & distillation
 - URL: PhiUSIIL phishing URL dataset (UCI, 235k URLs) + Tranco top 50k benign. **Bias fix:** PhiUSIIL's legitimate

@@ -40,6 +40,10 @@ Distilled from a local Qwen3-4B teacher; evaluated on 169 held-out messages (who
 
 Test labels for SMS/email come from the datasets; seed-family labels are hand-written. No teacher row is shown because test labels were reconciled with teacher outputs (that comparison would be circular).
 
+**Calibrated System-2 confidence:** the probability of the verdict token is turned into p(unsafe) and Platt-scaled on the validation set. Test (256 msgs): calibration error 0.0551 → **0.0443**, Brier 0.0561 → 0.0486.
+
+**System-1 → System-2 router:** skip System-2 when no rule tactic, no URL/email/phone/UPI, and System-1 p < threshold (threshold 0.0115, chosen on validation so no validation scam is skipped). Test: **25.8% of messages answered without System-2**; 1 positive skipped (a harmless joke SMS labelled spam in the 2011 dataset), 65 legitimate.
+
 **Explanation task** (held-out findings → plain-language explanation):
 
 | n | JSON valid | Key points citing a finding | All citations refer to real findings |

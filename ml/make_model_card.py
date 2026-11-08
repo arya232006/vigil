@@ -66,6 +66,16 @@ def main():
                      if s2.get("hybrid_severity_before_tuning") else ""),
                   "", "Test labels for SMS/email come from the datasets; seed-family labels are hand-written. No teacher row is "
                   "shown because test labels were reconciled with teacher outputs (that comparison would be circular).", ""]
+        if s2.get("calibration"):
+            c, rt = s2["calibration"], s2.get("router", {})
+            L += ["**Calibrated System-2 confidence:** the probability of the verdict token is turned into p(unsafe) and "
+                  f"Platt-scaled on the validation set. Test ({c['n_test']} msgs): calibration error {c['ece_raw']} → "
+                  f"**{c['ece_calibrated']}**, Brier {c['brier_raw']} → {c['brier_calibrated']}.", ""]
+            if rt:
+                L += [f"**System-1 → System-2 router:** {rt['rule']} (threshold {rt['s1_threshold']}, chosen on validation "
+                      f"so no validation scam is skipped). Test: **{pct(rt['test_skip_rate'])} of messages answered without "
+                      f"System-2**; {rt['test_positives_skipped']} positive skipped (a harmless joke SMS labelled spam in "
+                      f"the 2011 dataset), {rt['test_legit_skipped']} legitimate.", ""]
         for r in [x for x in s2["results"] if "points_with_citation" in x]:
             L += ["**Explanation task** (held-out findings → plain-language explanation):\n",
                   "| n | JSON valid | Key points citing a finding | All citations refer to real findings |", "|---|---|---|---|",
