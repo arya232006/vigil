@@ -28,8 +28,9 @@ class Severity(str, Enum):
     CRITICAL = "critical"
 
 
-InputType = Literal["url", "domain", "message"]
-Module = Literal["url", "domain", "redirect", "tls", "headers", "threat_intel", "ml", "message", "correlation"]
+InputType = Literal["url", "domain", "message", "email"]
+Module = Literal["url", "domain", "redirect", "tls", "headers", "threat_intel", "ml", "message", "correlation",
+                 "email"]
 
 
 class AnalyzeRequest(BaseModel):
@@ -145,6 +146,8 @@ class Report(BaseModel):
     recommendations: list[str] = []
     limitations: list[str] = []
     report_hash: str = ""                     # 0x-prefixed sha256 over canonical JSON (excluding this field)
+    # Track B: email reports only. Omitted from JSON when None so hashes of non-email reports are unchanged.
+    email: EmailInfo | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
 class VerifyResponse(BaseModel):
@@ -153,3 +156,66 @@ class VerifyResponse(BaseModel):
     recomputed_hash: str
     provided_hash: str | None = None
     integrity_ok: bool
+
+
+# --- Track B: email ---
+class EmailAuthResult(BaseModel):
+    spf: str | None = None                    # pass / fail / softfail / neutral / none / temperror / permerror
+    dkim: str | None = None                   # pass / fail / none / ... ("not_reported": signed, but no verdict)
+    dmarc: str | None = None                  # pass / fail / none / ... (None: receiver did not evaluate DMARC)
+    arc: str | None = None
+    spf_domain: str | None = None             # envelope sender (smtp.mailfrom) domain
+    dkim_domains: list[str] = []              # d= of DKIM signatures that passed
+    spf_aligned: bool | None = None           # relaxed alignment with the From registered domain (RFC 7489)
+    dkim_aligned: bool | None = None
+    authserv_id: str | None = None            # server whose Authentication-Results header was trusted
+    source: str | None = None
+
+
+class EmailAttachment(BaseModel):
+    filename: str
+    content_type: str
+    size: int
+    sha256: str
+    detected_type: str | None = None          # from magic bytes
+    risky: bool = False
+    reasons: list[str] = []
+
+
+class LinkMismatch(BaseModel):
+    text: str                                 # what the reader sees
+    href: str                                 # where the link really goes
+    text_domain: str
+    href_domain: str
+
+
+class EmailInfo(BaseModel):
+    from_address: str | None = None
+    from_domain: str | None = None
+    display_name: str | None = None
+    reply_to: list[str] = []
+    return_path: str | None = None
+    sender: str | None = None
+    subject: str | None = None
+    date: str | None = None
+    message_id: str | None = None
+    sender_is_freemail: bool = False
+    auth: EmailAuthResult = Field(default_factory=EmailAuthResult)
+    dmarc_policy: str | None = None           # reject / quarantine / none / missing / invalid / unavailable / not_checked
+    spf_record: str | None = None
+    received_hops: int = 0
+    origin_ip: str | None = None              # earliest public IP in the Received chain (forgeable below your MX)
+    body_source: str | None = None            # text/html | text/plain | none
+    link_count: int = 0
+    link_domains: list[str] = []
+    link_mismatches: list[LinkMismatch] = []
+    attachments: list[EmailAttachment] = []
+    body_report_id: str | None = None         # message report for subject + body (rules, AI, link investigation)
+
+
+class EmailAnalyzeRequest(BaseModel):
+    raw: str = Field(..., min_length=1, max_length=2_000_000)   # full .eml source ("Show original" in mail apps)
+    live_dns: bool = True                                        # DMARC / SPF DNS lookups for the sender domain
+
+
+Report.model_rebuild()
