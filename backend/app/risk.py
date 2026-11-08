@@ -11,6 +11,8 @@ from __future__ import annotations
 
 from .schemas import Finding, ModelScore, RiskLevel, Severity
 
+PRESSURE_TACTICS = {"urgency", "fear_threat", "reward_lure", "authority_impersonation", "secrecy",
+                    "instruction_injection"}
 POINTS = {Severity.CRITICAL: 45, Severity.HIGH: 22, Severity.MEDIUM: 9, Severity.LOW: 3, Severity.INFO: 0}
 # Findings about the site's own hygiene (headers, cookies) don't make a site malicious.
 HYGIENE_MODULES = {"headers"}
@@ -112,6 +114,13 @@ def classify_message(rule_tactics: dict[str, str], s2: dict | None, s1: ModelSco
     elif "instruction_injection" in rule_tactics:
         level = RiskLevel.HIGH
         trail.append("message attempts to manipulate AI analysis")
+    elif s2_verdict == "scam" and (
+            (s1_p >= 0.8 and len(grounded | set(rule_tactics)) >= 2)
+            or (len(grounded) >= 2 and (grounded | set(rule_tactics)) & PRESSURE_TACTICS)):
+        # Tuned on the validation set only: an AI scam verdict escalates when it is corroborated, either by
+        # System-1 plus >=2 evidence-backed tactics, or by >=2 quoted tactics that include manipulation.
+        level = RiskLevel.HIGH
+        trail.append("AI scam verdict corroborated by independent evidence (>=2 evidence-backed tactics)")
     elif harmful_rules or harmful_s2 or s2_verdict == "scam" or RiskLevel.HIGH in linked_levels \
             or RiskLevel.SUSPICIOUS in linked_levels:
         level = RiskLevel.SUSPICIOUS

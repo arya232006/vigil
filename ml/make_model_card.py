@@ -59,7 +59,11 @@ def main():
             L += [f"**Severity of hybrid decisions:** {pct(hs['legit_rated_high_or_confirmed'])} of {hs['n_legit']} legitimate "
                   f"messages were rated high-risk or confirmed (remaining false positives are only *suspicious*); "
                   f"{pct(hs['scams_rated_high_or_confirmed'])} of {hs['n_scam']} scams were escalated to high/confirmed on text "
-                  "alone (others are flagged *suspicious*; links inside messages are investigated separately and can escalate).",
+                  "alone (others are flagged *suspicious*; links inside messages are investigated separately and can escalate)."
+                  + (f" Before the validation-tuned escalation rule: {pct(s2['hybrid_severity_before_tuning']['scams_rated_high_or_confirmed'])} "
+                     f"of scams escalated and {pct(s2['hybrid_severity_before_tuning']['legit_rated_high_or_confirmed'])} of legitimate messages "
+                     "rated high. The rule was tuned on the validation set only; the test set was checked once afterwards."
+                     if s2.get("hybrid_severity_before_tuning") else ""),
                   "", "Test labels for SMS/email come from the datasets; seed-family labels are hand-written. No teacher row is "
                   "shown because test labels were reconciled with teacher outputs (that comparison would be circular).", ""]
         for r in [x for x in s2["results"] if "points_with_citation" in x]:
@@ -68,7 +72,8 @@ def main():
                   f"| {r['n']} | {pct(r['json_valid_rate'])} | {pct(r['points_with_citation'])} | {pct(r['citations_all_valid'])} |", ""]
     L += ["## Limitations\n",
           "- Host-only URL model cannot recognise compromised legitimate sites; threat intel, page checks and TLS cover that.",
-          "- Training data is mostly English (plus Hinglish variants); other languages are less reliable.",
+          "- Training data is mostly English (plus Hinglish variants); other languages are less reliable. Known error: an urgent "
+          "Hinglish insurance-renewal reminder was rated high-risk on the test set.",
           "- Teacher labels are imperfect; disagreements with dataset ground truth were dropped, not corrected.",
           "- All models produce evidence for a deterministic risk engine. They never issue a verdict alone."]
     (ROOT / "docs/MODEL_CARD.md").write_text("\n".join(L) + "\n")

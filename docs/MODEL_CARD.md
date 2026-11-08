@@ -34,9 +34,9 @@ Distilled from a local Qwen3-4B teacher; evaluated on 169 held-out messages (who
 | qwen3-1.7b base (no fine-tune) | 66.9% | 50.3% | 96.6% | 85.5% | 97.0% | 96.4% | 643 ms |
 | threatscope-s2 (qwen3-1.7b + our LoRA) | 92.9% | 82.5% | 93.3% | 9.7% | 100.0% | 98.7% | 631 ms |
 | risk engine: rules + System-1 (no System-2) | 62.7% | 53.8% | 49.4% | 1.6% | n/a | n/a | 0 ms |
-| risk engine: rules + System-1 + threatscope-s2 (full hybrid) | 93.5% | 66.4% | 95.5% | 11.3% | n/a | n/a | 0 ms |
+| risk engine: rules + System-1 + threatscope-s2 (full hybrid) | 93.5% | n/a | 95.5% | 11.3% | n/a | n/a | 0 ms |
 
-**Severity of hybrid decisions:** 0.0% of 62 legitimate messages were rated high-risk or confirmed (remaining false positives are only *suspicious*); 34.9% of 63 scams were escalated to high/confirmed on text alone (others are flagged *suspicious*; links inside messages are investigated separately and can escalate).
+**Severity of hybrid decisions:** 1.6% of 62 legitimate messages were rated high-risk or confirmed (remaining false positives are only *suspicious*); 74.6% of 63 scams were escalated to high/confirmed on text alone (others are flagged *suspicious*; links inside messages are investigated separately and can escalate). Before the validation-tuned escalation rule: 34.9% of scams escalated and 0.0% of legitimate messages rated high. The rule was tuned on the validation set only; the test set was checked once afterwards.
 
 Test labels for SMS/email come from the datasets; seed-family labels are hand-written. No teacher row is shown because test labels were reconciled with teacher outputs (that comparison would be circular).
 
@@ -49,6 +49,6 @@ Test labels for SMS/email come from the datasets; seed-family labels are hand-wr
 ## Limitations
 
 - Host-only URL model cannot recognise compromised legitimate sites; threat intel, page checks and TLS cover that.
-- Training data is mostly English (plus Hinglish variants); other languages are less reliable.
+- Training data is mostly English (plus Hinglish variants); other languages are less reliable. Known error: an urgent Hinglish insurance-renewal reminder was rated high-risk on the test set.
 - Teacher labels are imperfect; disagreements with dataset ground truth were dropped, not corrected.
 - All models produce evidence for a deterministic risk engine. They never issue a verdict alone.
