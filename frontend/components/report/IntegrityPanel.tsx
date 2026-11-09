@@ -24,7 +24,7 @@ export function IntegrityPanel({ report }: { report: Report }) {
   const { data: status } = useApi<ChainStatus>("/api/chain/status");
   const connected = status?.connected === true;
   const [verify, setVerify] = useState<ChainVerify | null>(null);
-  const [browserResult, setBrowserResult] = useState<{ ok: boolean; onchainHash: string; computedHash: string } | null>(null);
+  const [browserResult, setBrowserResult] = useState<{ ok: boolean; reporterOk: boolean; onchainHash: string; computedHash: string } | null>(null);
   const [busy, setBusy] = useState<Busy>(null);
   const [error, setError] = useState<string | null>(null);
   const [lookupVersion, setLookupVersion] = useState(0);
@@ -90,7 +90,7 @@ export function IntegrityPanel({ report }: { report: Report }) {
           <Field label="Transaction">
             <Mono>{shortHash(verify.tx_hash)}</Mono> <CopyButton value={verify.tx_hash} />{" "}
             {verify.explorer_url && (
-              <a href={verify.explorer_url} target="_blank" rel="noreferrer" className="text-xs text-accent hover:underline">
+              <a href={verify.explorer_url} target="_blank" rel="noreferrer" className="-my-1 inline-block py-1 text-xs text-accent hover:underline">
                 View on Etherscan
               </a>
             )}
@@ -120,7 +120,9 @@ export function IntegrityPanel({ report }: { report: Report }) {
           <Verdict ok={browserResult.ok}>
             {browserResult.ok
               ? "Your browser hashed this report and got the same value the chain holds."
-              : `Your browser computed ${shortHash(browserResult.computedHash)}, but the chain holds ${shortHash(browserResult.onchainHash)}.`}
+              : !browserResult.reporterOk
+                ? "This on-chain record was not written by Vigil, so it cannot vouch for this report."
+                : `Your browser computed ${shortHash(browserResult.computedHash)}, but the chain holds ${shortHash(browserResult.onchainHash)}.`}
           </Verdict>
         )}
         {verify?.detail && <p className="text-sm text-risk-warn">{verify.detail}</p>}

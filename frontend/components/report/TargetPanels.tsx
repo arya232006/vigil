@@ -35,7 +35,7 @@ function TlsCard({ tls }: { tls: Tls }) {
       </dl>
       {tls.chain.length > 0 && (
         <details className="mt-2">
-          <summary className="cursor-pointer text-xs text-accent">Certificate chain ({tls.chain.length})</summary>
+          <summary className="-my-1 cursor-pointer py-1 text-xs text-accent">Certificate chain ({tls.chain.length})</summary>
           <ol className="mt-2 space-y-1 text-xs">
             {tls.chain.map((cert, i) => (
               <li key={i} className="rounded bg-sunken p-2 break-words">

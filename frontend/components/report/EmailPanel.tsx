@@ -47,7 +47,7 @@ export function EmailPanel({ email }: { email: EmailInfo }) {
           {email.subject && <Field label="Subject">{email.subject}</Field>}
         </dl>
         {email.body_report_id && (
-          <Link href={`/reports/${email.body_report_id}`} className="mt-2 inline-block text-xs text-accent hover:underline">
+          <Link href={`/reports/${email.body_report_id}`} className="mt-1 -mb-1 inline-block py-1 text-xs text-accent hover:underline">
             Open the analysis of the email body
           </Link>
         )}

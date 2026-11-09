@@ -1,4 +1,5 @@
 """Prompts shared by the System-2 student (training + inference). Keep training and serving identical."""
+import re
 
 MSG_SYSTEM = (
     "You are ThreatScope-S2, a fraud-analysis model. Analyse the message inside <message> tags. "
@@ -18,4 +19,5 @@ EXPLAIN_SYSTEM = (
 
 
 def msg_user(text: str) -> str:
-    return f"<message>\n{text[:6000]}\n</message>"
+    # Attacker-written text must not be able to close the <message> block it is quoted in.
+    return f"<message>\n{re.sub(r'(?i)<(/?)message', r'[\1message', text[:6000])}\n</message>"

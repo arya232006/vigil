@@ -8,11 +8,12 @@ from ..schemas import Indicators
 
 URL_RX = re.compile(
     r"(?i)\b(?:(?:https?|hxxps?)://[^\s<>\"')\]]+|www\.[^\s<>\"')\]]+|"
-    r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.|\[\.\]))+(?:com|in|net|org|co|io|xyz|top|shop|info|link|ly|me|app|"
+    r"(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?(?:\.|\[\.\])){1,16}(?:com|in|net|org|co|io|xyz|top|shop|info|link|ly|me|app|"
     r"site|online|live|click|gov|edu|biz|us|uk|ru|cn|cc|pw|tk|ml|ga|cf|gq|icu|buzz|rest|cfd|sbs|vip|win|support|help|"
     r"store|fun|bank|page|dev|ai|gl|to|sh|gd|at)\b(?:/[^\s<>\"')\]]*)?)")
-EMAIL_RX = re.compile(r"(?i)\b[a-z0-9._%+-]+@[a-z0-9.-]+\.[a-z]{2,}\b")
-UPI_RX = re.compile(r"(?i)\b[a-z0-9._-]{2,}@(?:ybl|okaxis|oksbi|okhdfcbank|okicici|paytm|upi|apl|ibl|axl|icici|sbi|hdfcbank|axisbank|kotak|yesbank|fbl|idfcbank|jupiteraxis|freecharge|airtel)\b")
+# Repeats are bounded: unbounded ones make matching quadratic, and a crafted message could stall the API.
+EMAIL_RX = re.compile(r"(?i)\b[a-z0-9._%+-]{1,64}@[a-z0-9.-]{1,253}\.[a-z]{2,24}\b")
+UPI_RX = re.compile(r"(?i)\b[a-z0-9._-]{2,64}@(?:ybl|okaxis|oksbi|okhdfcbank|okicici|paytm|upi|apl|ibl|axl|icici|sbi|hdfcbank|axisbank|kotak|yesbank|fbl|idfcbank|jupiteraxis|freecharge|airtel)\b")
 PHONE_RX = re.compile(r"(?<!\d)(?:\+?91[\s-]?)?[6-9]\d{4}[\s-]?\d{5}(?!\d)|(?<!\d)\+?\d{1,3}[\s-]?\(?\d{3}\)?[\s-]?\d{3}[\s-]?\d{4}(?!\d)|\b1-?800-?[0-9X]{3}-?[0-9X]{4}\b")
 
 NEG = r"(?<!not )(?<!n't )(?<!never )(?<!dont )"

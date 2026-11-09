@@ -41,8 +41,15 @@ def _signing_key(token: str, issuer: str):
     return _jwks_client(issuer).get_signing_key_from_jwt(token).key
 
 
+DEFAULT_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3100,http://127.0.0.1:3100"
+
+
+def cors_origins() -> list[str]:
+    return [o.strip() for o in os.getenv("CORS_ORIGINS", DEFAULT_ORIGINS).split(",") if o.strip()]
+
+
 def _allowed_origins() -> list[str]:
-    return [o.strip() for o in os.getenv("CORS_ORIGINS", "*").split(",") if o.strip() and o.strip() != "*"]
+    return [o for o in cors_origins() if o != "*"]
 
 
 def current_user(request: Request) -> str | None:
@@ -63,8 +70,8 @@ def current_user(request: Request) -> str | None:
         raise HTTPException(503, "Sign-in could not be verified right now. Try again.") from None
     except jwt.PyJWTError:
         raise HTTPException(401, "Your session is invalid or has expired") from None
-    origins = _allowed_origins()
-    if origins and claims.get("azp") not in origins:
+    origins, azp = _allowed_origins(), claims.get("azp")
+    if origins and azp not in origins and (azp is not None or "CORS_ORIGINS" in os.environ):
         raise HTTPException(401, "Your session is not valid for this site")
     return claims["sub"]
 

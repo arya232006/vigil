@@ -330,12 +330,15 @@ Production build in headless Chromium (Brave), driving the real UI against the l
 
 ### What these results do not cover
 
-- **Sepolia:** every chain result above is from a local Hardhat chain. The contract is not yet deployed to Sepolia, so
-  the Etherscan link is untested.
+- **Sepolia:** the chain results above are from a local Hardhat chain. The API flow was then repeated once on Sepolia
+  (contract `0x012175dc68cb5480e37419a2ec9e04ee5Eef216F`, transaction `0x38edc59b4b42cab445cd3bbd4933da31fd3554a3ff44e3c5819692a11c46576a`) with a real Clerk session: anchor, chain
+  verify, an independent hash and author check, the tamper demo caught, and restore. The Etherscan link was returned but
+  the report page was not driven in a browser for this run.
 - **AI explanations:** the fine-tuned System-2 model was not running on the test machine, so these runs used rule-based
   summaries. The risk level does not depend on the model. Model quality is covered by the evaluation above.
-- **Threat intelligence:** OpenPhish was the only live feed. URLhaus and Google Safe Browsing need API keys that were
-  not configured.
+- **Threat intelligence:** the runs above used OpenPhish only. URLhaus and Google Safe Browsing were configured later:
+  Google's malware test URL then came back Confirmed malicious through the API, and URLhaus answered a known-bad lookup
+  directly. The cases above were not re-run with them.
 - **QR payment codes:** a UPI code is decoded and its payee extracted, but a code with no other signals rates Low risk
   (F19). Vigil cannot tell who owns a UPI ID, so a low rating here says little about the payee.
 - **Correlation:** a shared registrar is recorded but cannot link reports by itself, and public URL shorteners are not

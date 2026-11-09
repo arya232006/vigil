@@ -1,6 +1,6 @@
 """Vigil API — AI + cybersecurity investigation engine.
 
-Run: uvicorn app.main:app --host 0.0.0.0 --port 8000
+Run: scripts/run_api.sh (binds to localhost; see README for deploying)
 """
 from __future__ import annotations
 
@@ -9,9 +9,13 @@ import threading
 import time
 from collections import defaultdict, deque
 
-from fastapi import FastAPI, HTTPException, Request
+from typing import Annotated
+
+from fastapi import FastAPI, HTTPException, Query, Request
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import PlainTextResponse
+from starlette.datastructures import MutableHeaders
 from fastapi.concurrency import run_in_threadpool
 
 from . import auth, pipeline, store
@@ -21,11 +25,62 @@ from .schemas import AnalyzeRequest, Report, VerifyResponse
 
 app = FastAPI(title="Vigil API", version="1.0",
               description="Self-hosted AI + cybersecurity threat investigation. No third-party AI services.")
-app.add_middleware(CORSMiddleware, allow_origins=os.getenv("CORS_ORIGINS", "*").split(","),
-                   allow_methods=["*"], allow_headers=["*"])
+
+MAX_JSON_BODY_BYTES = int(os.getenv("MAX_JSON_BODY_BYTES", "262144"))     # 20,000 characters, even if fully escaped
+DOC_PATHS = ("/docs", "/redoc", "/openapi.json")
+
+
+class _Hardening:
+    """Caps request bodies before they are buffered and adds security headers. Pure ASGI, so streaming still works."""
+
+    def __init__(self, inner):
+        self.inner = inner
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http":
+            await self.inner(scope, receive, send)
+            return
+        path = scope["path"]
+        limit = EMAIL_MAX_BODY_BYTES if path == "/api/analyze/email" else MAX_JSON_BODY_BYTES
+        seen = 0
+
+        async def capped_receive():
+            nonlocal seen
+            message = await receive()
+            if message["type"] == "http.request":
+                seen += len(message.get("body", b""))
+                if seen > limit:
+                    raise HTTPException(413, "Request too large")
+            return message
+
+        async def with_headers(message):
+            if message["type"] == "http.response.start":
+                headers = MutableHeaders(scope=message)
+                headers["X-Content-Type-Options"] = "nosniff"
+                headers["X-Frame-Options"] = "DENY"
+                headers["Referrer-Policy"] = "no-referrer"
+                if not path.startswith(DOC_PATHS):
+                    headers["Content-Security-Policy"] = "default-src 'none'; frame-ancestors 'none'"
+                    headers["Cache-Control"] = "no-store"
+            await send(message)
+
+        declared = dict(scope["headers"]).get(b"content-length", b"")
+        if declared.isdigit() and int(declared) > limit:
+            await JSONResponse({"detail": "Request too large"}, 413)(scope, receive, with_headers)
+            return
+        await self.inner(scope, capped_receive, with_headers)
+
+
+# Added last means outermost: the host check runs first, and CORS headers also reach error responses.
+app.add_middleware(_Hardening)
+app.add_middleware(CORSMiddleware, allow_origins=auth.cors_origins(), allow_methods=["GET", "POST"],
+                   allow_headers=["Authorization", "Content-Type"], expose_headers=["X-Cache"])
+app.add_middleware(TrustedHostMiddleware,                  # stops DNS rebinding against a locally running API
+                   allowed_hosts=[h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]").split(",")])
 
 RATE = int(os.getenv("RATE_LIMIT_PER_MIN", "20"))
-_hits: dict[str, deque] = defaultdict(deque)
+CHAIN_RATE = int(os.getenv("CHAIN_RATE_LIMIT_PER_MIN", "120"))
+_hits: dict[tuple[str, str], deque] = defaultdict(deque)
 
 
 @app.on_event("startup")
@@ -34,13 +89,17 @@ def _startup():
     threading.Thread(target=lambda: (system1._url(), system1._msg()), daemon=True).start()
 
 
-def _rate_limit(ip: str):
-    q = _hits[ip]
+def _rate_limit(ip: str, bucket: str = "analysis", limit: int | None = None):
+    limit = RATE if limit is None else limit
     now = time.time()
+    if len(_hits) > 50_000:                                 # forget idle clients instead of growing without bound
+        for key in [k for k, v in _hits.items() if not v or now - v[-1] > 60]:
+            del _hits[key]
+    q = _hits[(bucket, ip)]
     while q and now - q[0] > 60:
         q.popleft()
-    if len(q) >= RATE:
-        raise HTTPException(429, f"Rate limit: {RATE} analyses per minute")
+    if len(q) >= limit:
+        raise HTTPException(429, f"Rate limit: {limit} requests per minute")
     q.append(now)
 
 
@@ -51,7 +110,7 @@ async def analyze(req: AnalyzeRequest, request: Request, user: auth.Viewer, fres
 
 
 @app.get("/api/reports")
-def reports(user: auth.SignedInUser, limit: int = 50):
+def reports(user: auth.SignedInUser, limit: Annotated[int, Query(ge=1, le=200)] = 50):
     return store.list_reports(user, min(limit, 200))
 
 
@@ -83,7 +142,8 @@ def stats(user: auth.SignedInUser):
 
 @app.get("/api/health")
 def health():
-    return {"status": "ok", "feeds": threatintel.feed_status(), "system2": system2.status()}
+    public = {k: v for k, v in system2.status().items() if k != "student_url"}
+    return {"status": "ok", "feeds": threatintel.feed_status(), "system2": public}
 
 
 @app.get("/api/models")
@@ -183,6 +243,8 @@ def _chain_call(fn, *args):
     """A chain outage must never read as a failed integrity check, so it surfaces as 502/503."""
     try:
         return fn(*args)
+    except chain.ChainRateLimited as e:
+        raise HTTPException(429, str(e)) from None
     except chain.ChainNotConfigured as e:
         raise HTTPException(503, str(e)) from None
     except chain.ChainError as e:
@@ -190,13 +252,15 @@ def _chain_call(fn, *args):
 
 
 @app.get("/api/chain/status")
-def chain_status():
+def chain_status(request: Request):
+    _rate_limit(_client_ip(request), "chain", CHAIN_RATE)
     return chain.status()
 
 
 @app.get("/api/chain/lookup")
-def chain_lookup(domain: str):
+def chain_lookup(request: Request, domain: Annotated[str, Query(min_length=1, max_length=253)]):
     """On-chain reports for a domain, matched by keccak256 of the normalised domain."""
+    _rate_limit(_client_ip(request), "chain", CHAIN_RATE)
     return _chain_call(chain.lookup, domain)
 
 
@@ -212,6 +276,7 @@ def anchor_report(report_id: str, request: Request, user: auth.SignedInUser):
 
 
 @app.get("/api/reports/{report_id}/chain-verify", response_model=ChainVerifyResponse)
-def chain_verify_report(report_id: str, user: auth.Viewer):
+def chain_verify_report(report_id: str, request: Request, user: auth.Viewer):
     """Recompute the report's hash and compare it with the value committed on-chain."""
+    _rate_limit(_client_ip(request), "chain", CHAIN_RATE)
     return _chain_call(chain.verify, _report_or_404(report_id, user))

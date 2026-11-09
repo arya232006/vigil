@@ -9,5 +9,7 @@ _TMP = Path(tempfile.mkdtemp(prefix="vigil-tests-"))
 os.environ["DB_PATH"] = str(_TMP / "reports.db")
 os.environ.pop("DATABASE_URL", None)            # a real database must never be used by tests
 os.environ["S2_BASE_URL"] = "http://127.0.0.1:9/v1"
+os.environ["ALLOWED_HOSTS"] = "testserver,localhost,127.0.0.1"
+os.environ["CORS_ORIGINS"] = "http://localhost:3000"
 os.environ["OLLAMA_URL"] = "http://127.0.0.1:9"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))

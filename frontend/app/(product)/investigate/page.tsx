@@ -144,7 +144,7 @@ export default function InvestigatePage() {
       <PageTitle
         eyebrow="vg.investigate"
         title="Is This A Threat?"
-        intro="Paste it below. Deterministic checks gather the evidence and set the risk level. Our self-hosted AI only explains what they found."
+        intro="Paste it below. Deterministic checks gather the evidence and a rule engine sets the risk level. Our self-hosted AI adds its reading and explains the result."
       />
 
       <div className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_340px]">

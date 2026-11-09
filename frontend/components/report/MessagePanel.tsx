@@ -54,7 +54,7 @@ function LinkedReport({ id }: { id: string }) {
   return (
     <li className="flex flex-wrap items-center gap-2">
       <RiskBadge level={data.risk_level} />
-      <Link href={`/reports/${id}`} className="font-mono text-xs break-all text-accent hover:underline">
+      <Link href={`/reports/${id}`} className="-my-1 inline-block py-1 font-mono text-xs break-all text-accent hover:underline">
         {defang(label)}
       </Link>
     </li>

@@ -24,6 +24,10 @@ class _SqliteDb:
         path.parent.mkdir(parents=True, exist_ok=True)
         self._conn = sqlite3.connect(path, check_same_thread=False)
         self._conn.execute("PRAGMA journal_mode=WAL")
+        try:
+            path.chmod(0o600)                       # reports hold users' messages; the WAL files inherit this mode
+        except OSError:
+            pass
         self._lock = threading.Lock()
 
     def query(self, sql: str, params: tuple | list = ()) -> list[tuple]:

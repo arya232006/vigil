@@ -72,6 +72,34 @@ def _tamper(report, rewrite_stored_hash=True):
     store.save(edited, [])
 
 
+IMPOSTOR = "0x" + "11" * 20
+
+
+def _repoint_anchor_at_impostor_record(client, registry, report):
+    """A stronger attacker: edits the report and its hash, writes the edited hash to the open registry from their own
+    wallet, then points the stored anchor at that record so every hash comparison lines up."""
+    client.post(f"/api/reports/{report.report_id}/anchor")
+    _tamper(report)
+    edited = store.get(report.report_id)
+    registry.records.append((IMPOSTOR, 1_700_000_500, bytes.fromhex(edited.report_hash[2:]), bytes(32)))
+    store.save_anchor({**store.get_anchor(report.report_id, 31337, ADDRESS), "registry_id": len(registry.records) - 1,
+                       "report_hash": edited.report_hash, "reporter": IMPOSTOR})
+
+
+def test_record_written_by_another_wallet_cannot_vouch_for_a_report(client, registry, report, monkeypatch):
+    monkeypatch.delenv("CHAIN_TRUSTED_REPORTER", raising=False)
+    _repoint_anchor_at_impostor_record(client, registry, report)
+    body = client.get(f"/api/reports/{report.report_id}/chain-verify").json()
+    assert body["anchored"] is True and body["integrity_ok"] is False
+    assert body["reporter"] == IMPOSTOR and "not written by this service" in body["detail"]
+
+
+def test_trusted_reporter_setting_decides_which_records_count(client, registry, report, monkeypatch):
+    monkeypatch.setenv("CHAIN_TRUSTED_REPORTER", IMPOSTOR)
+    _repoint_anchor_at_impostor_record(client, registry, report)
+    assert client.get(f"/api/reports/{report.report_id}/chain-verify").json()["integrity_ok"] is True
+
+
 def test_indicator_hash_normalises_the_domain():
     assert chain.indicator_hash(" Evil.Example. ") == chain.indicator_hash("evil.example")
 
@@ -155,3 +183,24 @@ def test_transport_errors_do_not_leak_the_rpc_url(monkeypatch):
 
 def test_unknown_report_is_404(client, registry):
     assert client.post("/api/reports/missing/anchor").status_code == 404
+
+
+def test_record_written_by_another_wallet_fails_verification(client, registry, report):
+    client.post(f"/api/reports/{report.report_id}/anchor")
+    _, timestamp, report_hash, indicator = registry.records[0]
+    registry.records[0] = ("0x70997970C51812dc3A010C7d01b50e0d17dc79C8", timestamp, report_hash, indicator)
+    body = client.get(f"/api/reports/{report.report_id}/chain-verify").json()
+    assert body["integrity_ok"] is False and "not written by this service" in body["detail"]
+
+
+def test_public_test_key_is_refused_on_a_real_network(client, registry, report, monkeypatch):
+    real = chain._connect()
+    monkeypatch.setattr(chain, "_connect", lambda: (SimpleNamespace(eth=SimpleNamespace(chain_id=11155111)), real[1]))
+    assert client.post(f"/api/reports/{report.report_id}/anchor").status_code == 503
+    assert registry.records == []
+
+
+def test_anchoring_has_a_global_budget(client, registry, report, monkeypatch):
+    monkeypatch.setenv("ANCHOR_MAX_PER_HOUR", "0")
+    monkeypatch.setattr(chain, "_recent_anchors", chain.deque())
+    assert client.post(f"/api/reports/{report.report_id}/anchor").status_code == 429

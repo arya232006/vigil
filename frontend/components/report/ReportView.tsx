@@ -91,7 +91,7 @@ function KeyPoint({ text, validIds, onFocus }: { text: string; validIds: Set<str
             type="button"
             onClick={() => onFocus(id)}
             aria-label={`Go to finding ${id}`}
-            className="mr-1 rounded bg-sunken px-1.5 py-0.5 font-mono text-xs font-medium text-accent hover:underline"
+            className="-my-0.5 mr-1 rounded bg-sunken px-1.5 py-1 font-mono text-xs font-medium text-accent hover:underline"
           >
             {id}
           </button>
@@ -115,7 +115,7 @@ function Explanation({ report, onFocus }: { report: Report; onFocus: (id: string
         </ul>
       )}
       <p className="mt-4 text-xs text-ink-3">
-        {by.label}. The AI explains the evidence; it cannot change the risk level.
+        {by.label}. The rule engine sets the risk level, and the AI’s reading is one of its inputs.
       </p>
     </Card>
   );
@@ -195,7 +195,7 @@ function Related({ report }: { report: Report }) {
           <li key={c.report_id || `private-${i}`} className="flex flex-wrap items-center gap-2 text-sm">
             <RiskBadge level={c.risk_level} />
             {c.report_id ? (
-              <Link href={`/reports/${c.report_id}`} className="font-mono text-xs text-accent hover:underline">
+              <Link href={`/reports/${c.report_id}`} className="-my-1 py-1 font-mono text-xs text-accent hover:underline">
                 {c.report_id}
               </Link>
             ) : (
