@@ -1,11 +1,14 @@
 import { Nav } from "@/components/Nav";
+import { brandFonts } from "../fonts";
+import "../(marketing)/landing.css";
 
 export default function ProductLayout({ children }: LayoutProps<"/">) {
   return (
-    <>
-      <Nav />
-      {/* Branded pages (`.landing`) run edge to edge. */}
-      <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-8 sm:px-6 has-[.landing]:max-w-none has-[.landing]:p-0!">{children}</main>
-    </>
+    <div className={`landing app-shell ${brandFonts}`}>
+      <div className="flex min-h-svh flex-col bg-(--l-pink)">
+        <Nav />
+        <main className="mx-auto w-full max-w-[1240px] flex-1 px-4 py-10 sm:px-8">{children}</main>
+      </div>
+    </div>
   );
 }

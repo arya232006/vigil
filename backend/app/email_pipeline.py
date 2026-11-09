@@ -100,7 +100,7 @@ def _input_summary(p: ea.Parsed) -> str:
     return f"Email from {who} | Subject: {p.subject or '(none)'}"[:300]
 
 
-def _failed_report(rid: str, err: Exception) -> Report:
+def _failed_report(rid: str, err: Exception, owner_id: str | None = None) -> Report:
     f = Finding(id="F1", module="email", title="Email could not be parsed", severity=Severity.INFO,
                 description=f"{type(err).__name__}: {str(err)[:200]}", evidence={}, source="Email parser")
     rep = Report(report_id=rid, input_type="email", input="Unparseable email", analyzed_at=pipeline.now(),
@@ -110,15 +110,15 @@ def _failed_report(rid: str, err: Exception) -> Report:
                                          + pipeline.LEVEL_ADVICE[RiskLevel.INCONCLUSIVE], generated_by="template"),
                  recommendations=[pipeline.LEVEL_ADVICE[RiskLevel.INCONCLUSIVE]],
                  limitations=pipeline.BASE_LIMITATIONS[:1])
-    return pipeline._finalize(rep, [])
+    return pipeline._finalize(rep, [], owner_id=owner_id)
 
 
-def analyze_email(raw: str, live_dns: bool = True) -> Report:
+def analyze_email(raw: str, live_dns: bool = True, owner_id: str | None = None) -> Report:
     rid = uuid.uuid4().hex[:12]
     try:
         ec = ea.run_all(raw, live_dns=live_dns, rank_fn=threatintel.tranco_rank)
     except Exception as e:                       # never 500 on hostile input; report what happened
-        return _failed_report(rid, e)
+        return _failed_report(rid, e, owner_id)
     p = ec.parsed
     checks = list(ec.checks)
     limitations = pipeline.BASE_LIMITATIONS[:1] + [
@@ -138,7 +138,7 @@ def analyze_email(raw: str, live_dns: bool = True) -> Report:
     body: Report | None = None
     if text:
         try:
-            body = pipeline.analyze_message(text)
+            body = pipeline.analyze_message(text, owner_id)
             checks.append(CheckStatus(name="body_analysis", status="ok",
                                       detail=f"report {body.report_id}: {body.risk_level.value} "
                                              f"(score {body.risk_score}), {len(body.findings)} finding(s)"))
@@ -215,4 +215,4 @@ def analyze_email(raw: str, live_dns: bool = True) -> Report:
                     linked_reports=([body.report_id] + body.linked_reports) if body else [],
                     explanation=pipeline._template_explanation(level, findings, p.subject),
                     recommendations=recs, limitations=limitations, email=info)
-    return pipeline._finalize(report, inds)
+    return pipeline._finalize(report, inds, owner_id=owner_id)

@@ -22,29 +22,35 @@ const NOTES = [
   },
 ];
 
-/** A fishing hook through an envelope, inside a scope reticle. */
-function HookArt() {
+/** A message holding a one-time code, examined under a lens and found to be fine. */
+function InspectedMessageArt() {
   return (
     <svg
       viewBox="0 0 400 300"
       fill="none"
       stroke="var(--l-ink)"
-      strokeWidth="4.5"
+      strokeWidth="5"
       strokeLinecap="round"
       strokeLinejoin="round"
-      className="absolute inset-0 m-auto h-[82%] w-full"
+      className="absolute inset-0 m-auto h-[80%] w-full"
       aria-hidden
     >
-      <circle cx="200" cy="160" r="122" strokeDasharray="168 23.6" strokeDashoffset="-11.8" />
-      <path d="M200 26v30M200 264v30M66 160h30M304 160h30" />
-      <path d="m118 78 8 8M282 78l-8 8M118 242l8-8M282 242l-8-8" />
-      <rect x="128" y="120" width="144" height="92" rx="7" fill="#fbd3dd" />
-      <path d="m130 124 70 52 70-52" />
-      <path d="M200 8v44" strokeWidth="2.5" strokeDasharray="1 8" />
-      <circle cx="200" cy="60" r="8" />
-      <path d="M200 68v102a30 30 0 0 1-60 0v-16" stroke="#fbd3dd" strokeWidth="12" />
-      <path d="M200 68v102a30 30 0 0 1-60 0v-16" strokeWidth="6" />
-      <path d="m140 154-11 15M140 154l12 13" strokeWidth="6" />
+      <g transform="translate(-20 0)">
+        <path
+          d="M84 50h202a14 14 0 0 1 14 14v122a14 14 0 0 1-14 14H148l-38 34v-34H84a14 14 0 0 1-14-14V64a14 14 0 0 1 14-14Z"
+          fill="#fbd3dd"
+        />
+        <path d="M96 78h168M96 96h104M96 176h120" />
+        {[96, 128, 160, 192, 224, 256].map((x) => (
+          <g key={x}>
+            <rect x={x} y="112" width="24" height="36" rx="3" />
+            <circle cx={x + 12} cy="130" r="4" fill="var(--l-ink)" stroke="none" />
+          </g>
+        ))}
+        <path d="m326 234 44 44" strokeWidth="13" />
+        <circle cx="292" cy="200" r="48" fill="#fdecf1" strokeWidth="6" />
+        <path d="m268 201 17 18 32-38" strokeWidth="7" />
+      </g>
     </svg>
   );
 }
@@ -57,7 +63,7 @@ export function FieldNotes() {
       <div className="mx-auto grid w-full max-w-[1140px] gap-y-14 px-4 pt-16 pb-10 xl:grid-cols-[820px_269px] xl:gap-x-[51px] xl:px-0 xl:pt-[126px]">
         <Link href={FEATURED.href} className="note-link block">
           <div className="note-art relative aspect-820/519 w-full">
-            <HookArt />
+            <InspectedMessageArt />
           </div>
           <span className="note-tag-large terminal mt-5 inline-block bg-[#e551ba]">{FEATURED.tag}</span>
           <h3 className="note-title-large mt-10">{FEATURED.title}</h3>

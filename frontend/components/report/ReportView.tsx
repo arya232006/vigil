@@ -3,7 +3,9 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, type ReactNode } from "react";
-import { Button, Card, ErrorNote, RiskBadge, Tag } from "@/components/ui";
+import { CountUp } from "@/app/(marketing)/CountUp";
+import { DitherFill } from "@/app/(marketing)/DitherFill";
+import { Button, Card, ErrorNote, RiskBadge } from "@/components/ui";
 import { errorMessage, investigate } from "@/lib/api";
 import { RISK, defang, explainedBy, formatTime, percent } from "@/lib/format";
 import type { CheckStatus, ModelScore, Report } from "@/lib/types";
@@ -33,43 +35,45 @@ function Header({ report, cached }: { report: Report; cached: boolean }) {
   }
 
   return (
-    <header className="rounded-lg border border-line bg-surface p-5">
-      <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-        <RiskBadge level={report.risk_level} large />
+    <header className="win">
+      <div className="win-bar terminal">
+        <span>report.{report.report_id}</span>
+        <span>{report.input_type}{cached ? " · cached" : ""}</span>
+      </div>
+      <div className={`flex flex-wrap items-end justify-between gap-x-8 gap-y-3 p-5 text-white ${RISK[report.risk_level].bg}`}>
+        <div className="min-w-0">
+          <h1 className="display text-[clamp(3rem,8vw,6.5rem)]">{RISK[report.risk_level].label}</h1>
+          <p className="mt-3 text-xl leading-snug">{RISK[report.risk_level].message}</p>
+        </div>
+        <p className="display text-[clamp(3rem,6vw,5rem)] tabular-nums">
+          <CountUp value={report.risk_score} decimals={0} suffix="" />
+          <span className="text-[0.4em]">/100</span>
+        </p>
+      </div>
+      <div className="grid gap-x-8 gap-y-4 p-5 md:grid-cols-[minmax(0,1fr)_260px]">
+        <div className="min-w-0">
+          <p className="code text-xs text-ink-3">Submitted</p>
+          <p className="code mt-1 line-clamp-3 text-sm break-all">{isLink ? defang(report.input) : report.input}</p>
+          <p className="terminal mt-3 text-lg">{formatTime(report.analyzed_at)}</p>
+        </div>
         <div>
-          <p className="text-xs text-ink-3">Risk score</p>
-          <p className="font-mono text-lg font-semibold">
-            {report.risk_score}
-            <span className="text-sm font-normal text-ink-3">/100</span>
-          </p>
-        </div>
-        <div className="min-w-40">
-          <p className="text-xs text-ink-3">Evidence coverage</p>
-          <div className="mt-1.5 flex items-center gap-2">
-            <div className="h-1.5 w-28 rounded-full bg-sunken">
-              <div className="h-1.5 rounded-full bg-ink-2" style={{ width: `${report.confidence * 100}%` }} />
+          <div className="flex items-baseline justify-between">
+            <p className="code text-xs text-ink-3">Evidence coverage</p>
+            <p className="terminal text-xl tabular-nums">{percent(report.confidence, 0)}</p>
+          </div>
+          <div className="mt-1 h-6 border border-(--l-ink) bg-(--l-paper)">
+            <div className="h-full" style={{ width: `${report.confidence * 100}%` }}>
+              <DitherFill density={0.75} />
             </div>
-            <span className="font-mono text-xs">{percent(report.confidence, 0)}</span>
           </div>
+          {report.input_type !== "email" && (
+            <div className="mt-4 text-right">
+              <Button onClick={rerun} disabled={rerunning}>{rerunning ? "Re-running ..." : "Re-run analysis"}</Button>
+            </div>
+          )}
         </div>
-        {report.input_type !== "email" && (
-          <div className="ml-auto">
-            <Button onClick={rerun} disabled={rerunning}>
-              {rerunning ? "Re-running…" : "Re-run analysis"}
-            </Button>
-          </div>
-        )}
       </div>
-      <p className="mt-4 font-medium">{RISK[report.risk_level].message}</p>
-      <p className="mt-1 line-clamp-2 font-mono text-[13px] break-all text-ink-2">
-        {isLink ? defang(report.input) : report.input}
-      </p>
-      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs text-ink-3">
-        <Tag>{report.input_type}</Tag>
-        {cached && <Tag>cached</Tag>}
-        <span>{formatTime(report.analyzed_at)}</span>
-      </div>
-      {error && <div className="mt-3"><ErrorNote>{error}</ErrorNote></div>}
+      {error && <div className="px-5 pb-5"><ErrorNote>{error}</ErrorNote></div>}
     </header>
   );
 }
@@ -102,7 +106,7 @@ function Explanation({ report, onFocus }: { report: Report; onFocus: (id: string
   const validIds = new Set(report.findings.map((f) => f.id));
   return (
     <Card title="What we found">
-      <p className="leading-relaxed">{report.explanation.summary}</p>
+      <p className="text-[26px] leading-[1.2]">{report.explanation.summary}</p>
       {report.explanation.key_points.length > 0 && (
         <ul className="mt-3 space-y-2">
           {report.explanation.key_points.map((point) => (
@@ -187,12 +191,16 @@ function Related({ report }: { report: Report }) {
   return (
     <Card title="Related reports">
       <ul className="space-y-2">
-        {report.correlations.map((c) => (
-          <li key={c.report_id} className="flex flex-wrap items-center gap-2 text-sm">
+        {report.correlations.map((c, i) => (
+          <li key={c.report_id || `private-${i}`} className="flex flex-wrap items-center gap-2 text-sm">
             <RiskBadge level={c.risk_level} />
-            <Link href={`/reports/${c.report_id}`} className="font-mono text-xs text-accent hover:underline">
-              {c.report_id}
-            </Link>
+            {c.report_id ? (
+              <Link href={`/reports/${c.report_id}`} className="font-mono text-xs text-accent hover:underline">
+                {c.report_id}
+              </Link>
+            ) : (
+              <span className="text-xs text-ink-2">Another user&apos;s private report</span>
+            )}
             <span className="text-xs break-all text-ink-2">shares {c.shared.map(defang).join(", ")}</span>
           </li>
         ))}

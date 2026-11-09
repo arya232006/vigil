@@ -96,7 +96,12 @@ def main():
     md.append("\n## Model evaluation (from training)\n\n```json\n" + json.dumps(
         {k: {kk: vv for kk, vv in v.items() if kk not in ("feature_names",)} for k, v in models.items()}, indent=2) + "\n```\n")
     (ROOT / "docs").mkdir(exist_ok=True)
-    (ROOT / "docs/TESTING.md").write_text("\n".join(md))
+    # The integration section is written by hand (this script cannot run those checks), so carry it over.
+    report_path = ROOT / "docs/TESTING.md"
+    previous = report_path.read_text() if report_path.exists() else ""
+    marker = previous.find("<!-- integration-results -->")
+    kept = "\n" + previous[marker:] if marker >= 0 else ""
+    report_path.write_text("\n".join(md) + kept)
     (ROOT / "docs/test_results.json").write_text(json.dumps(rows, indent=2))
     print(f"\n{passed}/{len(rows)} passed → docs/TESTING.md")
 

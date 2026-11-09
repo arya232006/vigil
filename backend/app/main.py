@@ -14,7 +14,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import PlainTextResponse
 from fastapi.concurrency import run_in_threadpool
 
-from . import pipeline, store
+from . import auth, pipeline, store
 from .checks import threatintel
 from .ml import system1, system2
 from .schemas import AnalyzeRequest, Report, VerifyResponse
@@ -45,38 +45,30 @@ def _rate_limit(ip: str):
 
 
 @app.post("/api/analyze", response_model=Report)
-async def analyze(req: AnalyzeRequest, request: Request, fresh: bool = False):
+async def analyze(req: AnalyzeRequest, request: Request, user: auth.Viewer, fresh: bool = False):
     # Track A: result cache (?fresh=true bypasses it) + X-Cache header; see _analyze_cached at the end of the file.
-    return await _analyze_cached(req, request, fresh)
+    return await _analyze_cached(req, request, fresh, user)
 
 
 @app.get("/api/reports")
-def reports(limit: int = 50):
-    return store.list_reports(min(limit, 200))
+def reports(user: auth.SignedInUser, limit: int = 50):
+    return store.list_reports(user, min(limit, 200))
 
 
 @app.get("/api/reports/{report_id}", response_model=Report)
-def report(report_id: str):
-    r = store.get(report_id)
-    if not r:
-        raise HTTPException(404, "report not found")
-    return r
+def report(report_id: str, user: auth.Viewer):
+    return _report_or_404(report_id, user)
 
 
 @app.get("/api/reports/{report_id}/canonical", response_class=PlainTextResponse)
-def canonical(report_id: str):
+def canonical(report_id: str, user: auth.Viewer):
     """Exact bytes that are hashed (sha256) for the on-chain commitment."""
-    r = store.get(report_id)
-    if not r:
-        raise HTTPException(404, "report not found")
-    return store.canonical_json(r)
+    return store.canonical_json(_report_or_404(report_id, user))
 
 
 @app.get("/api/reports/{report_id}/verify", response_model=VerifyResponse)
-def verify(report_id: str, hash: str | None = None):
-    r = store.get(report_id)
-    if not r:
-        raise HTTPException(404, "report not found")
+def verify(report_id: str, user: auth.Viewer, hash: str | None = None):
+    r = _report_or_404(report_id, user)
     recomputed = store.compute_hash(r)
     ok = recomputed == r.report_hash and (hash is None or hash.lower() == recomputed)
     return VerifyResponse(report_id=report_id, stored_hash=r.report_hash, recomputed_hash=recomputed,
@@ -84,9 +76,9 @@ def verify(report_id: str, hash: str | None = None):
 
 
 @app.get("/api/stats")
-def stats():
-    """Dashboard aggregates: risk distribution + indicators recurring across risky reports (campaigns)."""
-    return store.stats()
+def stats(user: auth.SignedInUser):
+    """Dashboard aggregates for the signed-in user: risk distribution + indicators recurring across their risky reports."""
+    return store.stats(user)
 
 
 @app.get("/api/health")
@@ -112,30 +104,31 @@ def _client_ip(request: Request) -> str:
     return request.client.host if request.client else "unknown"
 
 
-async def _analyze_cached(req: AnalyzeRequest, request: Request, fresh: bool) -> JSONResponse:
+async def _analyze_cached(req: AnalyzeRequest, request: Request, fresh: bool, user: str | None) -> JSONResponse:
     """Body of POST /api/analyze: answer from the result cache unless fresh, else analyse synchronously.
     Rate limiting only applies when a new analysis actually runs."""
-    report = None if fresh else jobs.cached_report(req.input, req.type)
+    report = None if fresh else jobs.cached_report(req.input, req.type, user)
     cache = "HIT" if report is not None else "MISS"
     if report is None:
         _rate_limit(_client_ip(request))
-        report = await run_in_threadpool(pipeline.analyze, req.input, req.type)
-        jobs.remember(req.input, req.type, report)
+        report = await run_in_threadpool(pipeline.analyze, req.input, req.type, user)
+        jobs.remember(req.input, req.type, report, user)
     return JSONResponse(report.model_dump(mode="json"),
                         headers={"X-Cache": cache, "Access-Control-Expose-Headers": "X-Cache"})
 
 
 @app.post("/api/jobs", response_model=JobInfo, status_code=202)
-async def create_job(req: JobRequest, request: Request):
+async def create_job(req: JobRequest, request: Request, user: auth.Viewer):
     """Queue an analysis and return at once; poll GET /api/jobs/{job_id}. A cached result comes back already
     `done` with `cached: true` and the report; an identical input already in progress returns that job."""
-    return jobs.submit(req.input, req.type, fresh=req.fresh, on_new_work=lambda: _rate_limit(_client_ip(request)))
+    return jobs.submit(req.input, req.type, fresh=req.fresh, on_new_work=lambda: _rate_limit(_client_ip(request)),
+                       owner_id=user)
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobInfo)
-async def get_job(job_id: str):
+async def get_job(job_id: str, user: auth.Viewer):
     """Job status; includes the full `report` once `status` is `done`. 404 for unknown or evicted ids."""
-    job = jobs.get(job_id)
+    job = jobs.get(job_id, user)
     if job is None:
         raise HTTPException(404, "job not found")
     return job
@@ -155,7 +148,7 @@ EMAIL_MAX_BODY_BYTES = int(os.getenv("EMAIL_MAX_BODY_BYTES", str(3 * 1024 * 1024
 
 @app.post("/api/analyze/email", response_model=Report, openapi_extra={"requestBody": {
     "required": True, "content": {"application/json": {"schema": EmailAnalyzeRequest.model_json_schema()}}}})
-async def analyze_email(request: Request):
+async def analyze_email(request: Request, user: auth.Viewer):
     """Analyse a raw email (.eml source): SPF/DKIM/DMARC + alignment, sender identity, deceptive links,
     attachments, Received chain, sender-domain DNS posture, plus the message pipeline on subject + body."""
     _rate_limit(request.client.host if request.client else "unknown")
@@ -171,7 +164,7 @@ async def analyze_email(request: Request):
         req = EmailAnalyzeRequest.model_validate_json(bytes(buf))
     except ValidationError as e:
         raise RequestValidationError(e.errors(include_url=False)) from None
-    return await run_in_threadpool(email_pipeline.analyze_email, req.raw, req.live_dns)
+    return await run_in_threadpool(email_pipeline.analyze_email, req.raw, req.live_dns, user)
 
 
 # ================================================================ Web3: on-chain anchoring =======================
@@ -179,8 +172,8 @@ from . import chain  # noqa: E402
 from .schemas import AnchorInfo, ChainVerifyResponse  # noqa: E402
 
 
-def _report_or_404(report_id: str) -> Report:
-    r = store.get(report_id)
+def _report_or_404(report_id: str, viewer_id: str | None) -> Report:
+    r = store.get_for_viewer(report_id, viewer_id)
     if not r:
         raise HTTPException(404, "report not found")
     return r
@@ -208,16 +201,16 @@ def chain_lookup(domain: str):
 
 
 @app.post("/api/reports/{report_id}/anchor", response_model=AnchorInfo)
-def anchor_report(report_id: str, request: Request):
+def anchor_report(report_id: str, request: Request, user: auth.Viewer):
     """Commit the report's hash to ThreatRegistry. Spends the server's gas, so it is rate-limited like an analysis."""
     _rate_limit(_client_ip(request))
-    r = _report_or_404(report_id)
+    r = _report_or_404(report_id, user)
     if store.compute_hash(r) != r.report_hash:
         raise HTTPException(409, "Report does not match its stored hash; refusing to anchor it")
     return _chain_call(chain.anchor, r)
 
 
 @app.get("/api/reports/{report_id}/chain-verify", response_model=ChainVerifyResponse)
-def chain_verify_report(report_id: str):
+def chain_verify_report(report_id: str, user: auth.Viewer):
     """Recompute the report's hash and compare it with the value committed on-chain."""
-    return _chain_call(chain.verify, _report_or_404(report_id))
+    return _chain_call(chain.verify, _report_or_404(report_id, user))

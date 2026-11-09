@@ -31,7 +31,7 @@ def fake_body(monkeypatch):
     """Fast stand-in for pipeline.analyze_message: rule engine only, saved like a real report."""
     seen = []
 
-    def fake(text):
+    def fake(text, owner_id=None):
         seen.append(text)
         t = detect_tactics(text)
         harm = bool(set(t) & HARMFUL)

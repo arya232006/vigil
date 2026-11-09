@@ -78,10 +78,20 @@ def feed_status() -> dict:
             "urlhaus_api": bool(os.getenv("URLHAUS_AUTH_KEY")), "google_safe_browsing": bool(os.getenv("GSB_API_KEY"))}
 
 
-def lookup(url: str, host: str) -> tuple[list[Finding], list[str]]:
-    """Returns (findings, sources_consulted)."""
+def _failure_reason(e: Exception) -> str:
+    """Built from the error type, never str(e): the Google Safe Browsing request URL contains the API key."""
+    if isinstance(e, httpx.HTTPStatusError):
+        return f"HTTP {e.response.status_code}"
+    if isinstance(e, httpx.TimeoutException):
+        return "timed out"
+    return "unexpected response" if isinstance(e, ValueError) else "request failed"
+
+
+def lookup(url: str, host: str) -> tuple[list[Finding], list[str], list[str]]:
+    """Returns (findings, sources_consulted, sources_unavailable). A source counts as consulted only if it answered."""
     findings: list[Finding] = []
     sources = ["OpenPhish feed (local copy)"]
+    unavailable: list[str] = []
     n = _norm_url(url)
     h = host.lower().removeprefix("www.")
     reg = _extract(h).top_domain_under_public_suffix or h
@@ -106,25 +116,30 @@ def lookup(url: str, host: str) -> tuple[list[Finding], list[str]]:
 
     key = os.getenv("URLHAUS_AUTH_KEY")
     if key:
-        sources.append("URLhaus API")
         try:
             r = httpx.post("https://urlhaus-api.abuse.ch/v1/url/", data={"url": url}, headers={"Auth-Key": key}, timeout=6)
+            r.raise_for_status()
             j = r.json()
+            if j.get("query_status") not in ("ok", "no_results"):
+                raise ValueError("URLhaus did not complete the lookup")
+            sources.append("URLhaus API")
             if j.get("query_status") == "ok" and j.get("url_status") in ("online", "offline"):
                 hit("URLhaus malware URL database", url, f"exact URL ({j.get('threat', 'malware')})")
-        except (httpx.HTTPError, ValueError):
-            pass
+        except (httpx.HTTPError, ValueError) as e:
+            unavailable.append(f"URLhaus API ({_failure_reason(e)})")
     gsb = os.getenv("GSB_API_KEY")
     if gsb:
-        sources.append("Google Safe Browsing")
         try:
             r = httpx.post(f"https://safebrowsing.googleapis.com/v4/threatMatches:find?key={gsb}", timeout=6, json={
                 "client": {"clientId": "vigil", "clientVersion": "1.0"},
                 "threatInfo": {"threatTypes": ["MALWARE", "SOCIAL_ENGINEERING", "UNWANTED_SOFTWARE"],
                                "platformTypes": ["ANY_PLATFORM"], "threatEntryTypes": ["URL"],
                                "threatEntries": [{"url": url}]}})
-            if r.json().get("matches"):
+            r.raise_for_status()
+            matches = r.json().get("matches")
+            sources.append("Google Safe Browsing")
+            if matches:
                 hit("Google Safe Browsing", url, "exact URL")
-        except (httpx.HTTPError, ValueError):
-            pass
-    return findings, sources
+        except (httpx.HTTPError, ValueError) as e:
+            unavailable.append(f"Google Safe Browsing ({_failure_reason(e)})")
+    return findings, sources, unavailable

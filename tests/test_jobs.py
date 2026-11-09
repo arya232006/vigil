@@ -44,7 +44,7 @@ def calls(monkeypatch):
     """Replace the slow pipeline; returns the list of (text, type) it was called with."""
     seen = []
 
-    def fake_analyze(text, typ="auto"):
+    def fake_analyze(text, typ="auto", owner_id=None):
         seen.append((text, typ))
         time.sleep(FAKE_DELAY)
         if "boom" in text:

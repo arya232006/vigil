@@ -261,3 +261,85 @@ Report `7de93779474d` · hash `0xf403bace39f9ae64…` · explained by `template`
   }
 }
 ```
+
+<!-- integration-results -->
+
+## Blockchain and frontend integration
+
+Run on 2026-11-09 against commit `e099bd0` plus the correlation, QR and interface changes made after it: **33/33 passed**.
+
+| Suite | Result |
+|---|---|
+| Backend unit and API tests (`pytest tests`) | 101 passed |
+| Contract tests (`cd contracts && npm test`) | 6 passed |
+| Frontend production build, type-check, lint | clean |
+| Blockchain flow (below) | 11/11 passed |
+| Frontend in a real browser (below) | 22/22 passed |
+
+### Blockchain flow
+
+Real transactions through the public API against `ThreatRegistry` on a local Hardhat chain
+(chain 31337, contract `0x5FbDB2315678afecb367f032d93F642f64180aa3`). Test report `f8711dc15694`, registry record #6,
+transaction `0x75d75aba13458d7de926d28996ab38f2e52626aede453737d9cce7fc3d1ccda9`.
+
+| # | Check | Observed | Result |
+|---|---|---|---|
+| W1 | Backend connects to the deployed registry | chain 31337, contract 0x5FbDB2315678afecb367f032d93F642f64180aa3 | ✅ |
+| W2 | A new report is reported as not anchored, not as tampered | — | ✅ |
+| W3 | Anchoring mines a transaction | registry id 6 | ✅ |
+| W4 | Anchoring twice is idempotent | — | ✅ |
+| W5 | Unmodified report matches the chain | — | ✅ |
+| W6 | SHA-256 recomputed outside the backend equals the on-chain hash | — | ✅ |
+| W7 | Domain lookup finds the report by indicator hash | 4 on-chain report(s) for the domain | ✅ |
+| W8 | Transaction data is one selector and two 32-byte hashes only | 68 bytes | ✅ |
+| W9 | Tamper that rewrites the stored hash fools the database-only check | — | ✅ |
+| W10 | The same tamper is caught by the on-chain check | — | ✅ |
+| W11 | Restored report matches the chain again | — | ✅ |
+
+W9 and W10 are the tamper demo. The edit changes the verdict and rewrites the stored hash, so a check against the
+database alone still passes. Only the comparison with the chain catches it.
+
+### Frontend
+
+Production build in headless Chromium (Brave), driving the real UI against the live API and chain.
+
+| # | Check | Observed | Result |
+|---|---|---|---|
+| F1 | Landing page loads under the Vigil name | — | ✅ |
+| F2 | All app routes load | 200 200 200 200 200 | ✅ |
+| F3 | Prompt injection pasted in the UI stays High risk | 3 quotes highlighted | ✅ |
+| F4 | Finding chips jump to their evidence | — | ✅ |
+| F5 | Register on-chain works from the report page | — | ✅ |
+| F6 | Browser recomputes the hash and reads the chain directly | — | ✅ |
+| F7 | UI shows a mismatch after tampering, from both verifiers | then restored and matched again | ✅ |
+| F8 | Benign site reads Low risk with no claim that it is safe | — | ✅ |
+| F9 | Reported URLs are defanged and never clickable | 0 links to the reported site | ✅ |
+| F10 | TLS card carries the valid-is-not-legitimate note | — | ✅ |
+| F11 | Phishing .eml upload renders the email panels | — | ✅ |
+| F12 | Dashboard shows live data in all panels | 10 panels | ✅ |
+| F13 | No sideways scrolling at desktop, tablet and phone widths | 18 page and width combinations | ✅ |
+| F14 | Reduced-motion users get final values immediately | 85.5% 9.7% | ✅ |
+| F15 | No browser console errors across the whole run | — | ✅ |
+| F16 | Dashboard has an empty state | — | ✅ |
+| F17 | A stopped API shows a clear error | — | ✅ |
+| F18 | QR image of a link decodes and is investigated | https://wrong.host.badssl.com | ✅ |
+| F19 | UPI payment QR is analysed as a message and the payee extracted | rated Low risk | ✅ |
+| F20 | An image with no QR code gives a clear message | No QR code found in that image. Try a sharper, closer picture. | ✅ |
+| F21 | Navbar marks the current page | — | ✅ |
+| F22 | App keeps its colours when the OS is in dark mode | rgb(222, 222, 222) | ✅ |
+
+### What these results do not cover
+
+- **Sepolia:** every chain result above is from a local Hardhat chain. The contract is not yet deployed to Sepolia, so
+  the Etherscan link is untested.
+- **AI explanations:** the fine-tuned System-2 model was not running on the test machine, so these runs used rule-based
+  summaries. The risk level does not depend on the model. Model quality is covered by the evaluation above.
+- **Threat intelligence:** OpenPhish was the only live feed. URLhaus and Google Safe Browsing need API keys that were
+  not configured.
+- **QR payment codes:** a UPI code is decoded and its payee extracted, but a code with no other signals rates Low risk
+  (F19). Vigil cannot tell who owns a UPI ID, so a low rating here says little about the payee.
+- **Correlation:** a shared registrar is recorded but cannot link reports by itself, and public URL shorteners are not
+  indexed as redirect hops, because neither says the reports are related.
+- **Reproducing:** W1–W11 and F1–F22 were run with a one-off browser script that is not in this repository. The test
+  suites in the first table are.
+- This section is maintained by hand. `tests/run_cases.py` keeps it when it regenerates the rest of this file.

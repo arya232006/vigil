@@ -5,7 +5,7 @@ import type { ReactNode } from "react";
 import { CountUp } from "@/app/(marketing)/CountUp";
 import { DitherFill } from "@/app/(marketing)/DitherFill";
 import { DitherPanel } from "@/app/(marketing)/DitherPanel";
-import { ErrorNote, RiskBadge } from "@/components/ui";
+import { ErrorNote, Loading, PageTitle, RiskBadge } from "@/components/ui";
 import { useApi } from "@/lib/api";
 import { RISK, RISK_ORDER, defang, formatTime, shortHash } from "@/lib/format";
 import type { ChainStatus, Health, ReportSummary, RiskLevel, Stats } from "@/lib/types";
@@ -21,6 +21,7 @@ const SEVERITY_DENSITY: Record<RiskLevel, number> = {
 
 const KIND_LABEL: Record<string, string> = {
   domain: "Domain",
+  redirect: "Redirect hop",
   entity: "Impersonated",
   upi: "UPI ID",
   phone: "Phone",
@@ -107,6 +108,45 @@ function SystemStatus({ health, healthFailed, chain }: { health?: Health; health
   );
 }
 
+const HOUR_MS = 3_600_000;
+const TIMELINE_HOURS = 24;
+
+/** Reports per hour for the 24 hours up to the most recent report, so a quiet instance still shows its last activity. */
+function ActivityTimeline({ reports }: { reports?: ReportSummary[] }) {
+  if (!reports?.length) return null;
+  const times = reports.map((r) => new Date(r.analyzed_at).getTime());
+  const lastHour = Math.floor(Math.max(...times) / HOUR_MS);
+  const hours = Array.from({ length: TIMELINE_HOURS }, (_, i) => lastHour - TIMELINE_HOURS + 1 + i);
+  const countAt = (hour: number) => times.filter((t) => Math.floor(t / HOUR_MS) === hour).length;
+  const max = Math.max(1, ...hours.map(countAt));
+  const clock = (hour: number) => new Date(hour * HOUR_MS).toLocaleString(undefined, { hour: "numeric", day: "numeric", month: "short" });
+
+  return (
+    <Panel title="activity.timeline" meta="reports per hour">
+      <div className="p-4">
+        <ol className="flex h-24 items-end gap-0.5 border-b border-(--l-ink)">
+          {hours.map((hour) => {
+            const count = countAt(hour);
+            return (
+              <li key={hour} className="flex h-full min-w-0 flex-1 items-end" title={`${clock(hour)}: ${count} report${count === 1 ? "" : "s"}`}>
+                {count > 0 && (
+                  <span className="block w-full border-x border-t border-(--l-ink)" style={{ height: `${(count / max) * 100}%` }}>
+                    <DitherFill density={0.6} />
+                  </span>
+                )}
+              </li>
+            );
+          })}
+        </ol>
+        <div className="terminal mt-1 flex justify-between text-lg">
+          <span>{clock(hours[0])}</span>
+          <span>{clock(hours[TIMELINE_HOURS - 1])}</span>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
 function RecentReports({ reports }: { reports?: ReportSummary[] }) {
   return (
     <Panel title="recent.investigations" meta="latest 8" className="lg:col-span-7">
@@ -132,7 +172,8 @@ function RecentReports({ reports }: { reports?: ReportSummary[] }) {
 
 export default function DashboardPage() {
   const { data, error, loading } = useApi<Stats>("/api/stats");
-  const { data: recent } = useApi<ReportSummary[]>("/api/reports?limit=8");
+  const { data: history } = useApi<ReportSummary[]>("/api/reports?limit=200");
+  const recent = history?.slice(0, 8);
   const { data: health, error: healthError } = useApi<Health>("/api/health");
   const { data: chain } = useApi<ChainStatus>("/api/chain/status");
 
@@ -147,19 +188,14 @@ export default function DashboardPage() {
     .sort((a, b) => b.reports - a.reports);
 
   return (
-    <div className="min-h-[calc(100svh-49px)] bg-(--l-pink) px-4 py-10 sm:px-8">
-      <div className="mx-auto max-w-[1240px]">
-        <header>
-          <p className="code text-sm">vg.dashboard</p>
-          <h1 className="display mt-3 text-[clamp(3rem,7vw,6rem)]">The Threat Desk</h1>
-          <p className="mt-3 max-w-xl text-xl leading-snug">Everything investigated on this Vigil instance, and which indicators keep coming back.</p>
-        </header>
+    <>
+      <PageTitle eyebrow="vg.dashboard" title="The Threat Desk" intro="Everything you have investigated, and which indicators keep coming back." />
 
-        {error && <div className="mt-8 bg-(--l-paper) p-1"><ErrorNote>{error}</ErrorNote></div>}
-        {loading && <p className="terminal mt-8 text-2xl">Loading the desk ...</p>}
+        {error && <ErrorNote>{error}</ErrorNote>}
+        {loading && <Loading>Loading the desk ...</Loading>}
 
         {data && (
-          <div className="relative mt-8 border border-(--l-ink) bg-[#df7b93] p-3 sm:p-5">
+          <div className="relative border border-(--l-ink) bg-[#df7b93] p-3 sm:p-5">
             <div className="dither pointer-events-none absolute inset-0 text-[#c46f84]" aria-hidden />
 
             {total === 0 ? (
@@ -174,7 +210,7 @@ export default function DashboardPage() {
             ) : (
               <div className="relative grid gap-5 lg:grid-cols-12">
                 <div className="grid gap-5 sm:grid-cols-2 lg:col-span-12 lg:grid-cols-4">
-                  <Kpi title="reports.total" value={<CountUp value={total} decimals={0} suffix="" />} caption="Investigations stored on this instance" />
+                  <Kpi title="reports.total" value={<CountUp value={total} decimals={0} suffix="" />} caption="Your saved investigations" />
                   <Kpi title="reports.flagged" value={<CountUp value={(flagged / total) * 100} decimals={0} />} caption={`${flagged} rated suspicious or worse`} />
                   <Kpi
                     title="chain.anchors"
@@ -184,7 +220,23 @@ export default function DashboardPage() {
                   <Kpi title="campaigns.active" value={<CountUp value={campaigns.length} decimals={0} suffix="" />} caption="Indicators seen in 2+ risky reports" />
                 </div>
 
+                <div className="lg:col-span-12">
+                  <ActivityTimeline reports={history} />
+                </div>
+
                 <Panel title="risk.levels" meta="denser = more severe" className="lg:col-span-7">
+                  <div className="flex h-10 gap-0.5 px-4 pt-4" role="img" aria-label="Share of reports at each risk level">
+                    {RISK_ORDER.filter((level) => (counts[level] ?? 0) > 0).map((level) => (
+                      <span
+                        key={level}
+                        className="block h-full border border-(--l-ink)"
+                        style={{ flexGrow: counts[level] ?? 0, flexBasis: 0 }}
+                        title={`${RISK[level].label}: ${counts[level]} of ${total}`}
+                      >
+                        <DitherFill density={SEVERITY_DENSITY[level]} />
+                      </span>
+                    ))}
+                  </div>
                   <ul className="space-y-3 p-4 text-[15px]">
                     {RISK_ORDER.map((level) => (
                       <Bar key={level} label={RISK[level].label} count={counts[level] ?? 0} total={total} max={riskMax} density={SEVERITY_DENSITY[level]} />
@@ -225,7 +277,6 @@ export default function DashboardPage() {
             )}
           </div>
         )}
-      </div>
-    </div>
+    </>
   );
 }

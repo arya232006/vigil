@@ -5,8 +5,10 @@ GET /api/jobs/{job_id}. Finished reports are cached by normalised input for a sh
 URL / domain / message is answered straight from the report store. A submission whose input is already queued or
 running joins that job instead of starting a second analysis.
 
-Everything here is in memory and per process: restarting the API forgets jobs and the cache (reports stay in
-SQLite). The cache only holds report ids; reports are always read back through `store.get`.
+Everything here is in memory and per process: restarting the API forgets jobs and the cache (reports stay in the
+report store). The cache only holds report ids; reports are always read back through `store.get`.
+
+Signed-in users never share a cache entry or job, because each of them owns their own copy of a report.
 """
 from __future__ import annotations
 
@@ -46,8 +48,8 @@ def resolve_type(text: str, typ: str = "auto") -> str:
     return pipeline.detect_type(text) if typ == "auto" else typ
 
 
-def cache_key(text: str, typ: str = "auto") -> str:
-    """Normalised cache / de-dup key: requested type + resolved type + normalised input."""
+def cache_key(text: str, typ: str = "auto", owner_id: str | None = None) -> str:
+    """Normalised cache / de-dup key: owner (if signed in) + requested type + resolved type + normalised input."""
     resolved = resolve_type(text, typ)
     if resolved == "message":
         norm = hashlib.sha256(" ".join(text.split()).encode("utf-8")).hexdigest()
@@ -56,7 +58,8 @@ def cache_key(text: str, typ: str = "auto") -> str:
             norm = normalize_url(text)
         except BlockedTarget:
             norm = text.strip().lower()
-    return f"{typ}|{resolved}|{norm}"
+    key = f"{typ}|{resolved}|{norm}"
+    return f"user:{owner_id}|{key}" if owner_id else key
 
 
 def _short_error(e: BaseException) -> str:
@@ -66,11 +69,12 @@ def _short_error(e: BaseException) -> str:
 
 
 class _Job:
-    __slots__ = ("job_id", "key", "text", "req_type", "input_type", "status", "cached", "report_id", "error",
+    __slots__ = ("job_id", "key", "text", "req_type", "input_type", "owner_id", "status", "cached", "report_id", "error",
                  "created", "started", "finished", "_t0", "_t1")
 
-    def __init__(self, key: str, text: str, req_type: str, input_type: str):
+    def __init__(self, key: str, text: str, req_type: str, input_type: str, owner_id: str | None = None):
         self.job_id = uuid.uuid4().hex[:12]
+        self.owner_id = owner_id
         self.key = key
         self.text: str | None = text          # dropped once the job finishes
         self.req_type = req_type
@@ -149,13 +153,13 @@ class JobManager:
                     del self._cache[key]
         return report
 
-    def cached_report(self, text: str, typ: str = "auto") -> Report | None:
+    def cached_report(self, text: str, typ: str = "auto", owner_id: str | None = None) -> Report | None:
         """Cached report for this input, or None (used by the synchronous /api/analyze)."""
-        return self._cached(cache_key(text, typ))
+        return self._cached(cache_key(text, typ, owner_id))
 
-    def remember(self, text: str, typ: str, report: Report) -> None:
+    def remember(self, text: str, typ: str, report: Report, owner_id: str | None = None) -> None:
         """Cache a report produced outside the job queue (the synchronous /api/analyze)."""
-        key = cache_key(text, typ)
+        key = cache_key(text, typ, owner_id)
         with self._lock:
             self._cache_put(key, resolve_type(text, typ), report)
 
@@ -194,7 +198,7 @@ class JobManager:
         return info
 
     def submit(self, text: str, typ: str = "auto", fresh: bool = False,
-               on_new_work: Callable[[], None] | None = None) -> JobInfo:
+               on_new_work: Callable[[], None] | None = None, owner_id: str | None = None) -> JobInfo:
         """Queue an analysis, or answer it without new work.
 
         - same input already queued/running -> that job is returned (also with fresh=True: it is fresh anyway)
@@ -203,7 +207,7 @@ class JobManager:
           new job is queued on the worker pool.
         """
         input_type = resolve_type(text, typ)
-        key = cache_key(text, typ)
+        key = cache_key(text, typ, owner_id)
         with self._lock:
             job = self._inflight.get(key)
         if job is not None:
@@ -212,7 +216,7 @@ class JobManager:
         if not fresh:
             report = self._cached(key)
             if report is not None:
-                job = _Job(key, text, typ, input_type)
+                job = _Job(key, text, typ, input_type, owner_id)
                 job.cached = True
                 with self._lock:
                     self._finish(job, DONE, report_id=report.report_id)
@@ -227,7 +231,7 @@ class JobManager:
             if job is None:
                 if on_new_work is not None:
                     on_new_work()
-                job = _Job(key, text, typ, input_type)
+                job = _Job(key, text, typ, input_type, owner_id)
                 self._add(job)
                 self._inflight[key] = job
                 self._pool.submit(self._run, job)
@@ -238,7 +242,7 @@ class JobManager:
             job.status, job.started = RUNNING, time.time()
             text, typ = job.text or "", job.req_type
         try:
-            report = pipeline.analyze(text, typ)
+            report = pipeline.analyze(text, typ, owner_id=job.owner_id)
         except Exception as e:                           # noqa: BLE001 - any pipeline error fails just this job
             log.exception("analysis job %s failed", job.job_id)
             with self._lock:
@@ -248,11 +252,13 @@ class JobManager:
             self._cache_put(job.key, job.input_type, report)
             self._finish(job, DONE, report_id=report.report_id)
 
-    def get(self, job_id: str) -> JobInfo | None:
-        """Job by id (with the full report when done), or None if unknown/evicted."""
+    def get(self, job_id: str, viewer_id: str | None = None) -> JobInfo | None:
+        """Job by id (with the full report when done), or None if unknown, evicted or another user's."""
         with self._lock:
             job = self._jobs.get(job_id)
-        return self._view(job) if job is not None else None
+        if job is None or job.owner_id not in (None, viewer_id):
+            return None
+        return self._view(job)
 
     def shutdown(self, wait: bool = True) -> None:
         self._pool.shutdown(wait=wait)
@@ -262,17 +268,17 @@ manager = JobManager()
 
 
 def submit(text: str, typ: str = "auto", fresh: bool = False,
-           on_new_work: Callable[[], None] | None = None) -> JobInfo:
-    return manager.submit(text, typ, fresh=fresh, on_new_work=on_new_work)
+           on_new_work: Callable[[], None] | None = None, owner_id: str | None = None) -> JobInfo:
+    return manager.submit(text, typ, fresh=fresh, on_new_work=on_new_work, owner_id=owner_id)
 
 
-def get(job_id: str) -> JobInfo | None:
-    return manager.get(job_id)
+def get(job_id: str, viewer_id: str | None = None) -> JobInfo | None:
+    return manager.get(job_id, viewer_id)
 
 
-def cached_report(text: str, typ: str = "auto") -> Report | None:
-    return manager.cached_report(text, typ)
+def cached_report(text: str, typ: str = "auto", owner_id: str | None = None) -> Report | None:
+    return manager.cached_report(text, typ, owner_id)
 
 
-def remember(text: str, typ: str, report: Report) -> None:
-    manager.remember(text, typ, report)
+def remember(text: str, typ: str, report: Report, owner_id: str | None = None) -> None:
+    manager.remember(text, typ, report, owner_id)

@@ -6,12 +6,12 @@ import type { RiskLevel, Severity } from "@/lib/types";
 
 export function RiskBadge({ level, large = false }: { level: RiskLevel; large?: boolean }) {
   const size = large ? "px-3 py-1.5 text-lg" : "px-2 py-0.5 text-xs";
-  return <span className={`inline-block rounded font-semibold text-white ${RISK[level].bg} ${size}`}>{RISK[level].label}</span>;
+  return <span className={`inline-block font-semibold text-white ${RISK[level].bg} ${size}`}>{RISK[level].label}</span>;
 }
 
 export function SeverityPill({ severity }: { severity: Severity }) {
   return (
-    <span className={`inline-block rounded px-1.5 py-0.5 text-[11px] font-semibold uppercase tracking-wide text-white ${SEVERITY_BG[severity]}`}>
+    <span className={`inline-block px-1.5 py-0.5 text-[11px] font-semibold tracking-wide text-white uppercase ${SEVERITY_BG[severity]}`}>
       {severity}
     </span>
   );
@@ -19,18 +19,35 @@ export function SeverityPill({ severity }: { severity: Severity }) {
 
 export function Tag({ children, tone = "neutral" }: { children: ReactNode; tone?: "neutral" | "danger" | "good" }) {
   const tones = {
-    neutral: "border-line text-ink-2",
+    neutral: "border-ink-3 text-ink-2",
     danger: "border-risk-high text-risk-high",
     good: "border-risk-ok text-risk-ok",
   };
-  return <span className={`inline-block rounded border px-1.5 py-0.5 text-xs ${tones[tone]}`}>{children}</span>;
+  return <span className={`inline-block border px-1.5 py-0.5 text-xs ${tones[tone]}`}>{children}</span>;
 }
 
-export function Card({ title, children, className = "" }: { title?: string; children: ReactNode; className?: string }) {
+export function Card({
+  title,
+  meta,
+  flush = false,
+  children,
+  className = "",
+}: {
+  title?: string;
+  meta?: string;
+  flush?: boolean;
+  children: ReactNode;
+  className?: string;
+}) {
   return (
-    <section className={`rounded-lg border border-line bg-surface p-5 ${className}`}>
-      {title && <h2 className="mb-3 text-sm font-semibold">{title}</h2>}
-      {children}
+    <section className={`win min-w-0 ${className}`}>
+      {title && (
+        <div className="win-bar terminal">
+          <h2>{title}</h2>
+          {meta && <span>{meta}</span>}
+        </div>
+      )}
+      <div className={flush ? "" : "p-4"}>{children}</div>
     </section>
   );
 }
@@ -45,7 +62,7 @@ export function Field({ label, children }: { label: string; children: ReactNode 
 }
 
 export function Mono({ children }: { children: ReactNode }) {
-  return <span className="font-mono text-[13px] break-all">{children}</span>;
+  return <span className="code text-[13px] break-all">{children}</span>;
 }
 
 export function Button({
@@ -53,11 +70,14 @@ export function Button({
   variant = "secondary",
   ...props
 }: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" }) {
-  const look = variant === "primary" ? "bg-ink text-bg border-ink" : "bg-surface text-ink border-line hover:bg-sunken";
+  const look =
+    variant === "primary"
+      ? "bg-(--l-ink) text-(--l-paper) hover:bg-(--l-pink) hover:text-(--l-ink)"
+      : "bg-(--l-paper) text-(--l-ink) hover:bg-(--l-ink) hover:text-(--l-paper)";
   return (
     <button
       {...props}
-      className={`rounded-md border px-3 py-1.5 text-sm font-medium disabled:cursor-not-allowed disabled:opacity-50 ${look}`}
+      className={`terminal cursor-pointer border border-(--l-ink) px-3 py-1 text-xl leading-tight disabled:cursor-not-allowed disabled:opacity-50 ${look}`}
     >
       {children}
     </button>
@@ -69,7 +89,7 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
   return (
     <button
       type="button"
-      className="text-xs text-accent hover:underline"
+      className="cursor-pointer text-xs text-accent underline"
       onClick={() =>
         navigator.clipboard.writeText(value).then(() => {
           setCopied(true);
@@ -84,21 +104,22 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
 
 export function ErrorNote({ children }: { children: ReactNode }) {
   return (
-    <p role="alert" className="rounded-md border border-risk-high px-3 py-2 text-sm text-risk-high">
+    <p role="alert" className="border border-risk-high bg-(--l-paper) px-3 py-2 text-sm text-risk-high">
       {children}
     </p>
   );
 }
 
-export function Loading({ children = "Loading…" }: { children?: ReactNode }) {
-  return <p className="text-sm text-ink-3">{children}</p>;
+export function Loading({ children = "Loading ..." }: { children?: ReactNode }) {
+  return <p className="terminal text-2xl">{children}</p>;
 }
 
-export function PageTitle({ title, intro }: { title: string; intro?: string }) {
+export function PageTitle({ eyebrow, title, intro }: { eyebrow: string; title: string; intro?: string }) {
   return (
-    <header className="mb-6">
-      <h1 className="text-2xl font-semibold tracking-tight">{title}</h1>
-      {intro && <p className="mt-1 text-sm text-ink-2">{intro}</p>}
+    <header className="mb-8">
+      <p className="code text-sm">{eyebrow}</p>
+      <h1 className="display mt-3 text-[clamp(3rem,7vw,6rem)]">{title}</h1>
+      {intro && <p className="mt-3 max-w-xl text-xl leading-snug">{intro}</p>}
     </header>
   );
 }

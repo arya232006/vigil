@@ -7,6 +7,7 @@ from pathlib import Path
 
 _TMP = Path(tempfile.mkdtemp(prefix="vigil-tests-"))
 os.environ["DB_PATH"] = str(_TMP / "reports.db")
+os.environ.pop("DATABASE_URL", None)            # a real database must never be used by tests
 os.environ["S2_BASE_URL"] = "http://127.0.0.1:9/v1"
 os.environ["OLLAMA_URL"] = "http://127.0.0.1:9"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))

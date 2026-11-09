@@ -14,7 +14,7 @@ from .checks import threatintel, tls
 from .checks.fetcher import BlockedTarget, UnresolvableHost, is_public_ip, normalize_url, safe_fetch
 from .checks.message import detect_tactics, extract_indicators
 from .ml import system1, system2
-from .ml.url_features import _extract, is_ip
+from .ml.url_features import SHORTENERS, _extract, is_ip
 from .schemas import (CheckStatus, Correlation, Explanation, Finding, Indicators, ModelScore, RedirectHop, Report,
                       RiskLevel, Severity, TargetInfo)
 
@@ -40,6 +40,9 @@ def now() -> str:
 
 def detect_type(text: str) -> str:
     t = text.strip()
+    scheme = t.split("://", 1)[0].lower() if "://" in t else ""
+    if scheme and scheme not in ("http", "https", "hxxp", "hxxps"):      # e.g. upi://pay?pa=...: nothing to fetch
+        return "message"
     if " " not in t and "\n" not in t and ("." in t or "://" in t):
         return "url" if ("/" in t or "://" in t) else "domain"
     return "message"
@@ -82,20 +85,41 @@ def _explain(level: RiskLevel, findings: list[Finding], subject: str) -> Explana
     return Explanation(summary=out["summary"], key_points=pts + out.get("advice", [])[:2], generated_by=used)
 
 
-def _correlate(report_id: str, inds: list[tuple[str, str]], extra: dict[str, list[str]] | None = None) -> list[Correlation]:
+# Thousands of unrelated sites share a registrar, so it can support a link but never create one on its own.
+WEAK_LINK_PREFIXES = ("registrar:",)
+
+
+def _infrastructure_indicators(target: TargetInfo, own_domain: str) -> list[tuple[str, str]]:
+    """Registrar and the sites a link was redirected through. Public URL shorteners are skipped: sharing one says
+    nothing about who is behind either link."""
+    inds = [("registrar", target.registrar.strip().lower())] if target.registrar else []
+    final = reg_domain(urlsplit(target.final_url).hostname or "") if target.final_url else ""
+    for hop in target.redirect_chain:
+        domain = reg_domain(urlsplit(hop.url).hostname or "")
+        if domain and domain not in (own_domain, final) and domain not in SHORTENERS:
+            inds.append(("redirect", domain))
+    return inds
+
+
+def _correlate(report_id: str, inds: list[tuple[str, str]], extra: dict[str, list[str]] | None = None,
+               owner_id: str | None = None) -> list[Correlation]:
     rel = store.find_related(inds, exclude_id=report_id)
+    rel = {rid: shared for rid, shared in rel.items() if not all(k.startswith(WEAK_LINK_PREFIXES) for k in shared)}
     for rid, shared in (extra or {}).items():
         rel.setdefault(rid, []).extend(shared)
     out = []
     for rid, shared in sorted(rel.items(), key=lambda kv: -len(kv[1]))[:10]:
         s = store.summary(rid)
         if s:
-            out.append(Correlation(report_id=rid, shared=shared[:6], risk_level=RiskLevel(s[0]), analyzed_at=s[1]))
+            # Another user's report stays private: only the indicators this report also contains are shown.
+            shown_id = rid if s[2] in (None, owner_id) else ""
+            out.append(Correlation(report_id=shown_id, shared=shared[:6], risk_level=RiskLevel(s[0]), analyzed_at=s[1]))
     return out
 
 
-def _finalize(report: Report, inds: list[tuple[str, str]], extra: dict[str, list[str]] | None = None) -> Report:
-    report.correlations = [c for c in _correlate(report.report_id, inds, extra)
+def _finalize(report: Report, inds: list[tuple[str, str]], extra: dict[str, list[str]] | None = None,
+              owner_id: str | None = None) -> Report:
+    report.correlations = [c for c in _correlate(report.report_id, inds, extra, owner_id)
                            if c.report_id not in report.linked_reports]       # own sub-reports aren't "earlier"
     if report.correlations:
         bad = [c for c in report.correlations if c.risk_level in (RiskLevel.HIGH, RiskLevel.CONFIRMED)]
@@ -107,12 +131,12 @@ def _finalize(report: Report, inds: list[tuple[str, str]], extra: dict[str, list
             evidence={"related": [c.model_dump() for c in report.correlations[:5]]},
             source="Vigil report history (deterministic indicator matching)"))
     report.report_hash = store.compute_hash(report)
-    store.save(report, inds)
+    store.save(report, inds, owner_id)
     return report
 
 
 # ---------------------------------------------------------------- URL / domain -----------------------
-def analyze_url(raw: str, input_type: str = "url", depth: int = 0) -> Report:
+def analyze_url(raw: str, input_type: str = "url", depth: int = 0, owner_id: str | None = None) -> Report:
     rid = uuid.uuid4().hex[:12]
     findings: list[Finding] = []
     checks: list[CheckStatus] = []
@@ -130,7 +154,7 @@ def analyze_url(raw: str, input_type: str = "url", depth: int = 0) -> Report:
                      checks=[CheckStatus(name="input_validation", status="failed", detail=str(e))],
                      explanation=Explanation(summary=f"This input cannot be analysed safely: {e}.", generated_by="template"),
                      recommendations=[LEVEL_ADVICE[RiskLevel.INCONCLUSIVE]], limitations=limitations)
-        return _finalize(rep, [])
+        return _finalize(rep, [], owner_id=owner_id)
 
     sp = urlsplit(url)
     host = sp.hostname or ""
@@ -181,9 +205,11 @@ def analyze_url(raw: str, input_type: str = "url", depth: int = 0) -> Report:
     except Exception as e:
         checks.append(CheckStatus(name="domain_analysis", status="failed", detail=str(e)[:200]))
 
-    ti_find, ti_src = f_ti.result()
+    ti_find, ti_src, ti_down = f_ti.result()
     findings += ti_find
-    checks.append(CheckStatus(name="threat_intel", status="ok", detail="; ".join(ti_src)))
+    checks.append(CheckStatus(name="threat_intel", status="ok",
+                              detail="; ".join(ti_src + [f"unavailable: {s}" for s in ti_down])))
+    limitations += [f"{s} could not be checked, so this link was not compared against it." for s in ti_down]
 
     fetch_ok = False
     tls_info = None
@@ -210,8 +236,9 @@ def analyze_url(raw: str, input_type: str = "url", depth: int = 0) -> Report:
                 evidence={"chain": [h.url for h in res.hops]}, source="Redirect-chain tracing (each hop SSRF-validated)",
                 impact="Redirect chains are used to hide the real destination from users and filters."))
             if final_reg != reg:
-                ti2, _ = threatintel.lookup(res.final_url, final_host)
+                ti2, _, ti2_down = threatintel.lookup(res.final_url, final_host)
                 findings += ti2
+                limitations += [f"{s} could not be checked for the final destination {final_host}." for s in ti2_down]
                 ml2 = system1.url_score(final_host)
                 if ml2.probability >= 0.5:
                     findings.append(Finding(
@@ -274,7 +301,8 @@ def analyze_url(raw: str, input_type: str = "url", depth: int = 0) -> Report:
         inds.append(("domain", reg_domain(urlsplit(target.final_url).hostname or "")))
     if tls_info and tls_info.chain:
         inds.append(("cert", tls_info.chain[0]["sha256"]))
-    return _finalize(report, inds)
+    inds += _infrastructure_indicators(target, reg)
+    return _finalize(report, inds, owner_id=owner_id)
 
 
 # ---------------------------------------------------------------- Message ---------------------------
@@ -283,14 +311,14 @@ def _shingles(t: str) -> set[str]:
     return {t[i:i + 5] for i in range(max(len(t) - 4, 1))}
 
 
-def analyze_message(text: str) -> Report:
+def analyze_message(text: str, owner_id: str | None = None) -> Report:
     rid = uuid.uuid4().hex[:12]
     checks: list[CheckStatus] = []
     findings: list[Finding] = []
     inds: Indicators = extract_indicators(text)
     rules = detect_tactics(text)
 
-    f_links = [POOL.submit(analyze_url, u, "url", 1) for u in inds.urls[:3]]
+    f_links = [POOL.submit(analyze_url, u, "url", 1, owner_id) for u in inds.urls[:3]]
 
     # System-1 first (milliseconds); the router decides whether System-2 reasoning is needed.
     s1 = None
@@ -417,9 +445,9 @@ def analyze_message(text: str) -> Report:
                 [("phone", p[-10:]) for p in inds.phones] + [("upi", u.lower()) for u in inds.upi_ids])
     if s2 and s2.get("impersonated_entity") and s2.get("verdict") != "legitimate":
         ind_list.append(("entity", s2["impersonated_entity"].lower().strip()))
-    return _finalize(report, ind_list, {r: [f"similar_wording:{j}"] for r, j in similar})
+    return _finalize(report, ind_list, {r: [f"similar_wording:{j}"] for r, j in similar}, owner_id)
 
 
-def analyze(text: str, typ: str = "auto") -> Report:
+def analyze(text: str, typ: str = "auto", owner_id: str | None = None) -> Report:
     t = detect_type(text) if typ == "auto" else typ
-    return analyze_message(text) if t == "message" else analyze_url(text.strip(), t)
+    return analyze_message(text, owner_id) if t == "message" else analyze_url(text.strip(), t, owner_id=owner_id)

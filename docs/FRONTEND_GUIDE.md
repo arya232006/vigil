@@ -25,13 +25,13 @@ feed each screen, and what judges will look for. Field names here match `backend
 
 ## 2. Setup
 
-- **Base URL (LAN, while the backend runs on Aryadeep's Mac):** `http://192.168.29.243:8000`
-  - Put it in an env var: `NEXT_PUBLIC_API_URL`.
-- **Interactive API docs:** `http://192.168.29.243:8000/docs` · **OpenAPI JSON:** `/openapi.json`
+- **Base URL (local):** `http://localhost:8000`
+  - Set in `frontend/.env.local` as `NEXT_PUBLIC_API_URL`. To demo across a LAN, use the backend machine's address instead.
+- **Interactive API docs:** `http://localhost:8000/docs` · **OpenAPI JSON:** `/openapi.json`
 - **CORS:** open (`*`), so no proxy needed. The `X-Cache` header is exposed.
 - **Generate TypeScript types automatically (recommended):**
   ```bash
-  npx openapi-typescript http://192.168.29.243:8000/openapi.json -o src/api/schema.d.ts
+  npx openapi-typescript http://localhost:8000/openapi.json -o src/api/schema.d.ts
   ```
 - **Build offline with real data:** sample reports in `docs/`:
   `sample_report_phishing_url.json`, `sample_report_tls_issue.json`, `sample_report_scam_message.json`,
@@ -202,7 +202,7 @@ Each `findings[]` item:
 - **Recommendations:** `recommendations[]` (bullet list, first one is the headline advice).
 - **Limitations:** `limitations[]` (small grey text; important for honesty).
 
-### 3.4 Integrity & blockchain panel (shared with the Web3 teammate)
+### 3.4 Integrity & blockchain panel
 
 | Element | Source |
 |---|---|
@@ -349,18 +349,20 @@ interface EmailInfo { from_address?: string; from_domain?: string; display_name?
 
 ## 8. Build checklist
 
-- [ ] Input + auto-detect + Email tab (file → text)
-- [ ] Jobs + polling + progress + cached badge + re-run
-- [ ] Report header (badge, score, evidence coverage)
-- [ ] Explanation with clickable `[F#]` chips + "self-hosted model" badge
-- [ ] Findings list (severity sort, collapsible evidence/impact/fix/caveats)
-- [ ] URL panel: target, redirect timeline, TLS card + "valid ≠ legitimate" note
-- [ ] Message panel: highlighted quotes, IOC chips, linked URL reports
-- [ ] Email panel: SPF/DKIM/DMARC table, sender identity, link mismatches, attachments
-- [ ] Checks / model scores / related reports / recommendations / limitations
-- [ ] Integrity panel + on-chain register/verify (with the Web3 teammate)
-- [ ] History, Dashboard, "Our AI" page
-- [ ] Defanged URLs, no HTML rendering of report fields, error states (429/413/404/failed)
+All built in `frontend/`. Results are in `docs/TESTING.md`.
+
+- [x] Input + auto-detect + Email tab (file → text)
+- [x] Jobs + polling + progress + cached badge + re-run
+- [x] Report header (badge, score, evidence coverage)
+- [x] Explanation with clickable `[F#]` chips + "self-hosted model" badge
+- [x] Findings list (severity sort, collapsible evidence/impact/fix/caveats)
+- [x] URL panel: target, redirect timeline, TLS card + "valid ≠ legitimate" note
+- [x] Message panel: highlighted quotes, IOC chips, linked URL reports
+- [x] Email panel: SPF/DKIM/DMARC table, sender identity, link mismatches, attachments
+- [x] Checks / model scores / related reports / recommendations / limitations
+- [x] Integrity panel + on-chain register/verify
+- [x] History, Dashboard, "Our AI" page
+- [x] Defanged URLs, no HTML rendering of report fields, error states (429/413/404/failed)
 
 ---
 

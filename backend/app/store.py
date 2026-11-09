@@ -1,6 +1,11 @@
-"""SQLite storage for reports + an indicator index used for correlation."""
+"""Report storage (Postgres when DATABASE_URL is set, SQLite otherwise) + an indicator index used for correlation.
+
+A report's owner is a database column and deliberately not part of the report body, so it never enters the hash that
+is committed on-chain. owner_id NULL means a guest's report: there is no account to restrict it to.
+"""
 from __future__ import annotations
 
+import atexit
 import hashlib
 import json
 import os
@@ -10,51 +15,92 @@ from pathlib import Path
 
 from .schemas import Report
 
+DATABASE_URL = os.getenv("DATABASE_URL", "").strip()
 DB_PATH = Path(os.getenv("DB_PATH", Path(__file__).resolve().parent.parent / "data" / "reports.db"))
-_lock = threading.Lock()
 
 
-def _conn() -> sqlite3.Connection:
-    DB_PATH.parent.mkdir(parents=True, exist_ok=True)
-    c = sqlite3.connect(DB_PATH, check_same_thread=False)
-    c.execute("PRAGMA journal_mode=WAL")
-    return c
+class _SqliteDb:
+    def __init__(self, path: Path):
+        path.parent.mkdir(parents=True, exist_ok=True)
+        self._conn = sqlite3.connect(path, check_same_thread=False)
+        self._conn.execute("PRAGMA journal_mode=WAL")
+        self._lock = threading.Lock()
+
+    def query(self, sql: str, params: tuple | list = ()) -> list[tuple]:
+        with self._lock:
+            rows = self._conn.execute(sql, params).fetchall()
+            self._conn.commit()
+            return rows
+
+    def transaction(self, *steps: tuple[str, list]) -> None:
+        """Each step is (sql, rows); the sql runs once per row and all steps commit together."""
+        with self._lock:
+            for sql, rows in steps:
+                self._conn.executemany(sql, rows)
+            self._conn.commit()
 
 
-_db = _conn()
-_db.executescript(
-    """
-    CREATE TABLE IF NOT EXISTS reports (
+class _PostgresDb:
+    def __init__(self, url: str):
+        from psycopg_pool import ConnectionPool
+        # Prepared statements are off because Neon's pooled endpoint is PgBouncer. check= replaces connections that
+        # were dropped while idle (Neon suspends quiet databases).
+        self._pool = ConnectionPool(url, min_size=1, max_size=int(os.getenv("DB_POOL_MAX", "8")), open=True, timeout=20,
+                                    check=ConnectionPool.check_connection, kwargs={"prepare_threshold": None})
+        atexit.register(self._pool.close)
+
+    def query(self, sql: str, params: tuple | list = ()) -> list[tuple]:
+        with self._pool.connection() as conn:
+            cur = conn.execute(sql.replace("?", "%s"), params)
+            return cur.fetchall() if cur.description else []
+
+    def transaction(self, *steps: tuple[str, list]) -> None:
+        with self._pool.connection() as conn, conn.cursor() as cur:
+            for sql, rows in steps:
+                if rows:
+                    cur.executemany(sql.replace("?", "%s"), rows)
+
+
+_db: _SqliteDb | _PostgresDb = _PostgresDb(DATABASE_URL) if DATABASE_URL else _SqliteDb(DB_PATH)
+
+for _statement in (
+    """CREATE TABLE IF NOT EXISTS reports (
         report_id TEXT PRIMARY KEY,
         analyzed_at TEXT NOT NULL,
         input_type TEXT NOT NULL,
         risk_level TEXT NOT NULL,
         report_hash TEXT NOT NULL,
-        body TEXT NOT NULL
-    );
-    CREATE TABLE IF NOT EXISTS indicators (
+        body TEXT NOT NULL,
+        owner_id TEXT
+    )""",
+    """CREATE TABLE IF NOT EXISTS indicators (
         report_id TEXT NOT NULL,
         kind TEXT NOT NULL,
         value TEXT NOT NULL
-    );
-    CREATE INDEX IF NOT EXISTS idx_ind ON indicators(kind, value);
-    CREATE TABLE IF NOT EXISTS anchors (
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_ind ON indicators(kind, value)",
+    """CREATE TABLE IF NOT EXISTS anchors (
         report_id TEXT NOT NULL,
-        chain_id INTEGER NOT NULL,
+        chain_id BIGINT NOT NULL,
         contract_address TEXT NOT NULL,
-        registry_id INTEGER NOT NULL,
+        registry_id BIGINT NOT NULL,
         tx_hash TEXT NOT NULL,
-        block_number INTEGER NOT NULL,
+        block_number BIGINT NOT NULL,
         report_hash TEXT NOT NULL,
         indicator_hash TEXT NOT NULL,
         reporter TEXT NOT NULL,
         anchored_at TEXT NOT NULL,
         PRIMARY KEY (report_id, chain_id, contract_address)
-    );
-    """
-)
+    )""",
+):
+    _db.query(_statement)
+if isinstance(_db, _SqliteDb) and "owner_id" not in [r[1] for r in _db.query("PRAGMA table_info(reports)")]:
+    _db.query("ALTER TABLE reports ADD COLUMN owner_id TEXT")      # databases created before accounts existed
+_db.query("CREATE INDEX IF NOT EXISTS idx_reports_owner ON reports(owner_id, analyzed_at)")
+
 _ANCHOR_COLUMNS = ("report_id", "chain_id", "contract_address", "registry_id", "tx_hash", "block_number",
                    "report_hash", "indicator_hash", "reporter", "anchored_at")
+_ANCHOR_KEY = ("report_id", "chain_id", "contract_address")
 
 
 def canonical_json(report: Report) -> str:
@@ -76,60 +122,58 @@ def purge_expired() -> int:
         return 0
     import datetime as _dt
     cutoff = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=RETENTION_DAYS)).isoformat(timespec="seconds")
-    with _lock:
-        ids = [r[0] for r in _db.execute("SELECT report_id FROM reports WHERE analyzed_at < ?", (cutoff,))]
-        _db.executemany("DELETE FROM indicators WHERE report_id=?", [(i,) for i in ids])
-        _db.executemany("DELETE FROM reports WHERE report_id=?", [(i,) for i in ids])
-        _db.commit()
+    ids = [(r[0],) for r in _db.query("SELECT report_id FROM reports WHERE analyzed_at < ?", (cutoff,))]
+    _db.transaction(("DELETE FROM indicators WHERE report_id=?", ids), ("DELETE FROM reports WHERE report_id=?", ids))
     return len(ids)
 
 
-def save(report: Report, indicators: list[tuple[str, str]]) -> None:
+def save(report: Report, indicators: list[tuple[str, str]], owner_id: str | None = None) -> None:
     purge_expired()
-    with _lock:
-        _db.execute(
-            "INSERT OR REPLACE INTO reports VALUES (?,?,?,?,?,?)",
-            (
-                report.report_id,
-                report.analyzed_at,
-                report.input_type,
-                report.risk_level.value,
-                report.report_hash,
-                report.model_dump_json(),
-            ),
-        )
-        _db.executemany(
-            "INSERT INTO indicators VALUES (?,?,?)",
-            [(report.report_id, k, v) for k, v in set(indicators)],
-        )
-        _db.commit()
+    _db.transaction(
+        ("INSERT INTO reports (report_id, analyzed_at, input_type, risk_level, report_hash, body, owner_id) "
+         "VALUES (?,?,?,?,?,?,?) ON CONFLICT (report_id) DO UPDATE SET analyzed_at=excluded.analyzed_at, "
+         "input_type=excluded.input_type, risk_level=excluded.risk_level, report_hash=excluded.report_hash, "
+         "body=excluded.body, owner_id=excluded.owner_id",
+         [(report.report_id, report.analyzed_at, report.input_type, report.risk_level.value, report.report_hash,
+           report.model_dump_json(), owner_id)]),
+        ("INSERT INTO indicators VALUES (?,?,?)", [(report.report_id, k, v) for k, v in set(indicators)]),
+    )
 
 
 def get(report_id: str) -> Report | None:
-    row = _db.execute("SELECT body FROM reports WHERE report_id=?", (report_id,)).fetchone()
-    return Report.model_validate_json(row[0]) if row else None
+    rows = _db.query("SELECT body FROM reports WHERE report_id=?", (report_id,))
+    return Report.model_validate_json(rows[0][0]) if rows else None
+
+
+def get_for_viewer(report_id: str, viewer_id: str | None) -> Report | None:
+    """The report if `viewer_id` may read it: guest reports are open to anyone with the link, owned reports only to
+    their owner. Not found and not allowed look the same, so a report's existence is not revealed."""
+    rows = _db.query("SELECT body, owner_id FROM reports WHERE report_id=?", (report_id,))
+    if not rows or rows[0][1] not in (None, viewer_id):
+        return None
+    return Report.model_validate_json(rows[0][0])
 
 
 def save_anchor(anchor: dict) -> None:
-    with _lock:
-        _db.execute(f"INSERT OR REPLACE INTO anchors ({','.join(_ANCHOR_COLUMNS)}) VALUES "
-                    f"({','.join('?' * len(_ANCHOR_COLUMNS))})", [anchor[c] for c in _ANCHOR_COLUMNS])
-        _db.commit()
+    updates = ",".join(f"{c}=excluded.{c}" for c in _ANCHOR_COLUMNS if c not in _ANCHOR_KEY)
+    _db.transaction((f"INSERT INTO anchors ({','.join(_ANCHOR_COLUMNS)}) VALUES ({','.join('?' * len(_ANCHOR_COLUMNS))}) "
+                     f"ON CONFLICT ({','.join(_ANCHOR_KEY)}) DO UPDATE SET {updates}",
+                     [[anchor[c] for c in _ANCHOR_COLUMNS]]))
 
 
 def get_anchor(report_id: str, chain_id: int, contract_address: str) -> dict | None:
-    row = _db.execute(f"SELECT {','.join(_ANCHOR_COLUMNS)} FROM anchors "
-                      "WHERE report_id=? AND chain_id=? AND contract_address=?",
-                      (report_id, chain_id, contract_address)).fetchone()
-    return dict(zip(_ANCHOR_COLUMNS, row)) if row else None
+    rows = _db.query(f"SELECT {','.join(_ANCHOR_COLUMNS)} FROM anchors "
+                     "WHERE report_id=? AND chain_id=? AND contract_address=?",
+                     (report_id, chain_id, contract_address))
+    return dict(zip(_ANCHOR_COLUMNS, rows[0])) if rows else None
 
 
-def list_reports(limit: int = 50) -> list[dict]:
-    rows = _db.execute(
+def list_reports(owner_id: str, limit: int = 50) -> list[dict]:
+    rows = _db.query(
         "SELECT report_id, analyzed_at, input_type, risk_level, report_hash, body FROM reports "
-        "ORDER BY analyzed_at DESC LIMIT ?",
-        (limit,),
-    ).fetchall()
+        "WHERE owner_id=? ORDER BY analyzed_at DESC LIMIT ?",
+        (owner_id, limit),
+    )
     out = []
     for rid, at, typ, lvl, h, body in rows:
         inp = json.loads(body).get("input", "")
@@ -144,34 +188,33 @@ def find_related(indicators: list[tuple[str, str]], exclude_id: str | None = Non
     """Return {report_id: ["kind:value", ...]} for stored reports sharing any indicator."""
     related: dict[str, list[str]] = {}
     for kind, value in set(indicators):
-        for (rid,) in _db.execute(
-            "SELECT DISTINCT report_id FROM indicators WHERE kind=? AND value=?", (kind, value)
-        ):
+        for (rid,) in _db.query("SELECT DISTINCT report_id FROM indicators WHERE kind=? AND value=?", (kind, value)):
             if rid != exclude_id:
                 related.setdefault(rid, []).append(f"{kind}:{value}")
     return related
 
 
-def summary(report_id: str) -> tuple[str, str] | None:
-    row = _db.execute("SELECT risk_level, analyzed_at FROM reports WHERE report_id=?", (report_id,)).fetchone()
-    return (row[0], row[1]) if row else None
+def summary(report_id: str) -> tuple[str, str, str | None] | None:
+    """(risk_level, analyzed_at, owner_id)"""
+    rows = _db.query("SELECT risk_level, analyzed_at, owner_id FROM reports WHERE report_id=?", (report_id,))
+    return rows[0] if rows else None
 
 
 def recent_messages(limit: int = 300) -> list[tuple[str, str]]:
-    rows = _db.execute("SELECT report_id, body FROM reports WHERE input_type='message' ORDER BY analyzed_at DESC LIMIT ?",
-                       (limit,)).fetchall()
+    rows = _db.query("SELECT report_id, body FROM reports WHERE input_type='message' ORDER BY analyzed_at DESC LIMIT ?",
+                     (limit,))
     return [(rid, json.loads(body).get("input", "")) for rid, body in rows]
 
 
-def stats() -> dict:
-    levels = dict(_db.execute("SELECT risk_level, COUNT(*) FROM reports GROUP BY risk_level").fetchall())
-    types = dict(_db.execute("SELECT input_type, COUNT(*) FROM reports GROUP BY input_type").fetchall())
+def stats(owner_id: str) -> dict:
+    levels = dict(_db.query("SELECT risk_level, COUNT(*) FROM reports WHERE owner_id=? GROUP BY risk_level", (owner_id,)))
+    types = dict(_db.query("SELECT input_type, COUNT(*) FROM reports WHERE owner_id=? GROUP BY input_type", (owner_id,)))
     top = {}
-    for kind in ("domain", "entity", "upi", "phone", "ip"):
-        top[kind] = [{"value": v, "reports": n} for v, n in _db.execute(
+    for kind in ("domain", "redirect", "entity", "upi", "phone", "ip"):
+        top[kind] = [{"value": v, "reports": n} for v, n in _db.query(
             "SELECT i.value, COUNT(DISTINCT i.report_id) n FROM indicators i JOIN reports r ON r.report_id=i.report_id "
-            "WHERE i.kind=? AND r.risk_level IN ('suspicious','high_risk','confirmed_malicious') "
-            "GROUP BY i.value HAVING n>1 ORDER BY n DESC LIMIT 10", (kind,)).fetchall()]
+            "WHERE i.kind=? AND r.owner_id=? AND r.risk_level IN ('suspicious','high_risk','confirmed_malicious') "
+            "GROUP BY i.value HAVING COUNT(DISTINCT i.report_id)>1 ORDER BY n DESC LIMIT 10", (kind, owner_id))]
     total = sum(levels.values())
     return {"total_reports": total, "by_risk_level": levels, "by_input_type": types,
             "recurring_indicators": top}

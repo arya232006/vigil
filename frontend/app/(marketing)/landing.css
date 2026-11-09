@@ -12,6 +12,40 @@
   overflow-x: clip;
 }
 
+/* App tokens are fixed inside the brand, so components read correctly whatever the OS theme is. */
+.landing {
+  --bg: #f386a1;
+  --surface: #dedede;
+  --sunken: #c4c4c4;
+  --ink: #1e1e1e;
+  --ink-2: #333333;
+  --ink-3: #4f4f4f;
+  --line: #8d8d8d;
+  --accent: #1b3fb0;
+  --highlight: #f386a1;
+  --highlight-ink: #1e1e1e;
+  --risk-critical: #7f1416;
+  --risk-high: #c0272d;
+  --risk-warn: #a85a06;
+  --risk-minor: #7a6a06;
+  --risk-ok: #1a7a42;
+  --risk-none: #5a6069;
+}
+
+.landing .tile[aria-current="page"] {
+  background: var(--l-pink);
+  color: var(--l-ink);
+}
+
+/* The brand's windows are square-cornered. */
+.app-shell .rounded,
+.app-shell .rounded-sm,
+.app-shell .rounded-md,
+.app-shell .rounded-lg,
+.app-shell .rounded-full {
+  border-radius: 0;
+}
+
 .landing .terminal {
   font-family: var(--font-terminal), ui-monospace, monospace;
   letter-spacing: 0.02em;

@@ -1,5 +1,6 @@
 "use client";
 
+import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
 import type { ChainVerify, JobInfo, Report } from "./types";
 
@@ -14,16 +15,33 @@ export class ApiError extends Error {
   }
 }
 
+let getAuthToken: () => Promise<string | null> = async () => null;
+
+export function setAuthTokenGetter(getter: () => Promise<string | null>) {
+  getAuthToken = getter;
+}
+
 const FRIENDLY: Record<number, string> = {
+  401: "Please sign in again to continue.",
   429: "Too many requests. Wait a minute and try again.",
   413: "That email is too large (the limit is about 2 MB).",
   404: "That report or job no longer exists. Submit it again.",
 };
 
 async function request(path: string, init?: RequestInit): Promise<Response> {
+  // A signed-in user must never fall back to a guest request: their report would be saved with no owner.
+  let token: string | null;
+  try {
+    token = await getAuthToken();
+  } catch {
+    throw new ApiError("Your session could not be confirmed. Reload the page and try again.", 401);
+  }
+  const headers = new Headers(init?.headers);
+  if (token) headers.set("Authorization", `Bearer ${token}`);
+
   let res: Response;
   try {
-    res = await fetch(`${API}${path}`, init);
+    res = await fetch(`${API}${path}`, { ...init, headers });
   } catch {
     throw new ApiError(`Can't reach the Vigil API at ${API}. Is the backend running?`, 0);
   }
@@ -74,13 +92,14 @@ export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : "S
 
 /** GET `path` (skipped when null). Change `reloadKey` to fetch again. */
 export function useApi<T>(path: string | null, reloadKey: number = 0) {
-  const key = path === null ? null : `${path}#${reloadKey}`;
+  const { isLoaded, userId } = useAuth();
+  const key = path === null ? null : `${path}#${reloadKey}#${userId ?? ""}`;
   const [state, setState] = useState<{ key: string | null; data?: T; error?: string }>({ key: null });
 
   useEffect(() => {
-    if (path === null) return;
+    if (path === null || !isLoaded) return; // wait for the session, so the first request isn't sent as a guest
     let current = true;
-    const k = `${path}#${reloadKey}`;
+    const k = `${path}#${reloadKey}#${userId ?? ""}`;
     getJson<T>(path).then(
       (data) => current && setState({ key: k, data }),
       (e) => current && setState({ key: k, error: errorMessage(e) }),
@@ -88,7 +107,7 @@ export function useApi<T>(path: string | null, reloadKey: number = 0) {
     return () => {
       current = false;
     };
-  }, [path, reloadKey]);
+  }, [path, reloadKey, isLoaded, userId]);
 
   const settled = state.key === key;
   return {

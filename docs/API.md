@@ -34,7 +34,7 @@ reports after N days (default 0 = keep).
 - `indicators` (message reports): extracted `urls`, `domains`, `emails`, `phones`, `upi_ids`
 - `linked_reports[]`: report ids of links found inside a message (fetch them with GET `/api/reports/{id}`)
 - `model_scores[]`: System-1 / System-2 outputs with calibrated probabilities
-- `correlations[]`: earlier reports sharing domains/IPs/certs/phones/UPI ids/similar wording
+- `correlations[]`: earlier reports sharing domains/IPs/certs/redirect hops/phones/UPI ids/similar wording. A shared registrar is listed as supporting evidence but never creates a link by itself
 - `recommendations[]`, `limitations[]`, `analyzed_at`, `report_hash`
 
 ## Web3 — what goes on-chain
