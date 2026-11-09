@@ -144,7 +144,7 @@ export function InjectionSection() {
         </div>
         <p className="max-w-[590px] text-[26px] leading-[1.2] text-[rgb(30_30_30/0.86)]">
           Text pasted into Vigil is data, never a command. An injection attempt becomes one more piece of evidence
-          against the message, and the AI that explains the report has no say in its verdict.
+          against the message, and when it matches a known injection pattern, the AI can’t talk the verdict down.
         </p>
       </div>
     </div>

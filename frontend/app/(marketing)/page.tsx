@@ -52,7 +52,7 @@ function BrandBlock() {
           <span>Vigil</span>
         </div>
       </div>
-      <div className="relative flex flex-wrap items-center justify-between gap-x-10 gap-y-6 px-4 py-16 text-[clamp(2rem,5vw,4.5rem)] sm:py-20">
+      <div className="relative flex flex-col items-center gap-x-10 gap-y-6 px-4 py-16 text-center text-[clamp(2rem,5vw,4.5rem)] sm:flex-row sm:flex-wrap sm:justify-between sm:py-20 sm:text-left">
         <Corners />
         <p className="display">Spotted Something?</p>
         <div className="flex items-center gap-6 sm:gap-10">
@@ -93,7 +93,7 @@ export default function LandingPage() {
 
         <nav className="relative flex flex-wrap items-start justify-between gap-1.5">
           <Link href="/" className="tile"><Logo /></Link>
-          <div className="flex flex-wrap gap-1.5">
+          <div className="order-last flex w-full flex-wrap gap-1.5 sm:order-none sm:w-auto">
             {NAV.slice(1).map(({ href, label }) => (
               <Link key={href} href={href} className="tile">{label}</Link>
             ))}
