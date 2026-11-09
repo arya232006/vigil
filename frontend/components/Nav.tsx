@@ -1,9 +1,9 @@
 "use client";
 
-import { Show, SignInButton, UserButton } from "@clerk/nextjs";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { Suspense } from "react";
+import { AccountControls } from "@/components/AccountControls";
 import { Logo } from "@/components/Logo";
 import { useApi } from "@/lib/api";
 import type { Health } from "@/lib/types";
@@ -59,16 +59,7 @@ export function Nav() {
               )}
             </span>
           )}
-          <Show when="signed-out">
-            <SignInButton>
-              <button type="button" className="tile cursor-pointer">Sign in</button>
-            </SignInButton>
-          </Show>
-          <Show when="signed-in">
-            <span className="flex items-center px-1.5">
-              <UserButton />
-            </span>
-          </Show>
+          <AccountControls />
         </div>
       </div>
     </nav>

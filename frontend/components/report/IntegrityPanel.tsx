@@ -1,5 +1,6 @@
 "use client";
 
+import { Show, SignInButton } from "@clerk/nextjs";
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, CopyButton, ErrorNote, Field, Mono } from "@/components/ui";
 import { anchorReport, chainVerify, errorMessage, getCanonical, useApi } from "@/lib/api";
@@ -129,9 +130,18 @@ export function IntegrityPanel({ report }: { report: Report }) {
       {connected ? (
         <div className="mt-3 flex flex-wrap gap-2">
           {verify && !anchored && (
-            <Button variant="primary" onClick={anchor} disabled={busy !== null}>
-              {busy === "anchor" ? "Waiting for the transaction…" : "Register on-chain"}
-            </Button>
+            <>
+              <Show when="signed-in">
+                <Button variant="primary" onClick={anchor} disabled={busy !== null}>
+                  {busy === "anchor" ? "Waiting for the transaction…" : "Register on-chain"}
+                </Button>
+              </Show>
+              <Show when="signed-out">
+                <SignInButton>
+                  <Button variant="primary">Sign in to register on-chain</Button>
+                </SignInButton>
+              </Show>
+            </>
           )}
           {anchored && (
             <Button onClick={recheck} disabled={busy !== null}>

@@ -18,10 +18,8 @@ from app.schemas import Report, RiskLevel  # noqa: E402
 
 
 def _write(report: Report) -> None:
-    with store._lock:
-        store._db.execute("UPDATE reports SET risk_level=?, report_hash=?, body=? WHERE report_id=?",
-                          (report.risk_level.value, report.report_hash, report.model_dump_json(), report.report_id))
-        store._db.commit()
+    store._db.query("UPDATE reports SET risk_level=?, report_hash=?, body=? WHERE report_id=?",
+                    (report.risk_level.value, report.report_hash, report.model_dump_json(), report.report_id))
 
 
 def main() -> int:
@@ -42,7 +40,7 @@ def main() -> int:
 
     report = store.get(args.report_id)
     if report is None:
-        print(f"Report {args.report_id} not found in {store.DB_PATH}", file=sys.stderr)
+        print(f"Report {args.report_id} not found", file=sys.stderr)
         return 1
     if backup.exists():
         print(f"{args.report_id} is already tampered; run with --restore first", file=sys.stderr)

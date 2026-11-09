@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { AccountControls } from "@/components/AccountControls";
 import { Logo, LogoMark } from "@/components/Logo";
 import { CountUp } from "./CountUp";
 import { DitherPanel } from "./DitherPanel";
@@ -97,7 +98,10 @@ export default function LandingPage() {
               <Link key={href} href={href} className="tile">{label}</Link>
             ))}
           </div>
-          <Link href="/investigate" className="tile tile-dark">Investigate</Link>
+          <div className="flex items-center gap-1.5">
+            <AccountControls />
+            <Link href="/investigate" className="tile tile-dark">Investigate</Link>
+          </div>
         </nav>
 
         <header className={`${wrap} relative pt-14 pb-24 text-center sm:pt-20`}>

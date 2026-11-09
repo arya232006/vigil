@@ -201,8 +201,9 @@ def chain_lookup(domain: str):
 
 
 @app.post("/api/reports/{report_id}/anchor", response_model=AnchorInfo)
-def anchor_report(report_id: str, request: Request, user: auth.Viewer):
-    """Commit the report's hash to ThreatRegistry. Spends the server's gas, so it is rate-limited like an analysis."""
+def anchor_report(report_id: str, request: Request, user: auth.SignedInUser):
+    """Commit the report's hash to ThreatRegistry. Spends the server's gas, so it needs an account and is rate-limited
+    like an analysis."""
     _rate_limit(_client_ip(request))
     r = _report_or_404(report_id, user)
     if store.compute_hash(r) != r.report_hash:

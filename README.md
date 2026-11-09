@@ -152,6 +152,10 @@ scripts/run_api.sh
 (cd frontend && npm run build && npm run start -- -p 3100)
 ```
 
+Reports go to Postgres when `DATABASE_URL` is set in `.env`, otherwise to a local SQLite file. Accounts use Clerk: put
+`CLERK_PUBLISHABLE_KEY` in `.env` and the Clerk keys in `frontend/.env.local`. Without an account you can still run
+investigations, but History and the Dashboard need sign-in.
+
 A Hardhat node keeps its chain in memory: after restarting it, run `deploy:local` again. Reports anchored earlier show
 as not anchored and can be registered again.
 

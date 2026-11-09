@@ -128,6 +128,10 @@ def test_owner_is_not_part_of_the_report_or_its_hash():
     assert store.compute_hash(store.get(r.report_id)) == r.report_hash
 
 
+def test_guests_cannot_anchor():
+    assert client.post(f"/api/reports/{_report(None).report_id}/anchor").status_code == 401
+
+
 def test_anchoring_another_users_report_is_refused():
     r = _report(_user())
     assert client.post(f"/api/reports/{r.report_id}/anchor", headers=_as(_user())).status_code == 404

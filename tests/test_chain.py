@@ -5,7 +5,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi.testclient import TestClient
 
-from app import chain, store
+from app import auth, chain, store
 from app.main import app
 from app.schemas import Explanation, Report, RiskLevel, TargetInfo
 
@@ -47,7 +47,10 @@ def registry(monkeypatch):
 
 @pytest.fixture
 def client():
-    return TestClient(app)
+    """Signed in, because anchoring needs an account (the guest case is in test_accounts.py)."""
+    app.dependency_overrides[auth.require_user] = lambda: "user_chain_tests"
+    yield TestClient(app)
+    app.dependency_overrides.pop(auth.require_user)
 
 
 @pytest.fixture

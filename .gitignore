@@ -35,3 +35,4 @@ contracts/typechain-types/
 contracts/coverage/
 contracts/deployments/localhost.json
 contracts/deployments/hardhat.json
+.vscode/

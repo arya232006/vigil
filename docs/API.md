@@ -8,13 +8,19 @@ Full typed schema: `backend/app/schemas.py` (the `Report` model is the contract)
 | Method | Path | Purpose |
 |---|---|---|
 | POST | `/api/analyze` | Body `{"input": "<url | domain | message text>", "type": "auto"}` → full `Report` |
-| GET | `/api/reports?limit=50` | Recent reports (id, time, type, risk_level, report_hash, input_preview) |
-| GET | `/api/reports/{id}` | Full `Report` |
+| GET | `/api/reports?limit=50` | The signed-in user's recent reports (id, time, type, risk_level, report_hash, input_preview). **401** for guests |
+| GET | `/api/reports/{id}` | Full `Report`. **404** if it belongs to another user |
 | GET | `/api/reports/{id}/canonical` | Exact canonical JSON string that is hashed |
 | GET | `/api/reports/{id}/verify?hash=0x…` | Recompute hash, compare with stored + provided hash |
-| GET | `/api/stats` | Dashboard: counts by risk level / input type + indicators recurring across risky reports (campaigns) |
+| GET | `/api/stats` | The signed-in user's dashboard: counts by risk level / input type + indicators recurring across their risky reports (campaigns). **401** for guests |
 | GET | `/api/health` | Feed + model status |
 | GET | `/api/models` | Evaluation metrics of the self-hosted models (show these in the UI!) |
+
+**Accounts.** Send a Clerk session token as `Authorization: Bearer <token>`. With no header the caller is a guest; an
+invalid or expired token is a **401**, never a guest. Reports from signed-in users are readable only by their owner
+(another user gets **404**, on jobs too). Guest reports have no owner and open for anyone with the link. In
+`correlations[]`, a report owned by someone else has an empty `report_id`: only the shared indicators and risk level
+are shown.
 
 `type` can be `auto | url | domain | message`. URL analyses take ~5–12 s, messages ~5–15 s
 (they also investigate up to 3 links inside the message). Show a progress state.
@@ -50,7 +56,7 @@ reporter address and timestamp. **Never** put the URL, message text or any perso
 | Method | Path | Purpose |
 |---|---|---|
 | GET | `/api/chain/status` | `{enabled, connected, chain_id, contract_address, total_reports, signer, signer_balance_eth, explorer}` |
-| POST | `/api/reports/{id}/anchor` | Commit the report on-chain (server pays gas, rate-limited, idempotent) → tx hash, registry id, `explorer_url` |
+| POST | `/api/reports/{id}/anchor` | Commit the report on-chain (needs sign-in, **401** for guests; server pays gas, rate-limited, idempotent) → tx hash, registry id, `explorer_url` |
 | GET | `/api/reports/{id}/chain-verify` | Recompute the hash and compare it with the chain → `anchored`, `integrity_ok`, `onchain_hash` |
 | GET | `/api/chain/lookup?domain=` | On-chain reports for a domain, matched by `indicatorHash` |
 
