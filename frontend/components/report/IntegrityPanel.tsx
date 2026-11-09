@@ -1,11 +1,12 @@
 "use client";
 
-import { Show, SignInButton } from "@clerk/nextjs";
+import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
 import { Button, Card, CopyButton, ErrorNote, Field, Mono } from "@/components/ui";
 import { anchorReport, chainVerify, errorMessage, getCanonical, useApi } from "@/lib/api";
 import { browserVerifyAvailable, verifyInBrowser } from "@/lib/chain";
 import { formatTime, reportDomain, shortHash } from "@/lib/format";
+import { useSession } from "@/lib/session";
 import type { ChainLookup, ChainStatus, ChainVerify, Report } from "@/lib/types";
 
 type Busy = "anchor" | "verify" | "browser" | null;
@@ -20,6 +21,7 @@ function Verdict({ ok, children }: { ok: boolean; children: React.ReactNode }) {
 }
 
 export function IntegrityPanel({ report }: { report: Report }) {
+  const { ready, account } = useSession();
   const id = report.report_id;
   const { data: status } = useApi<ChainStatus>("/api/chain/status");
   const connected = status?.connected === true;
@@ -133,16 +135,19 @@ export function IntegrityPanel({ report }: { report: Report }) {
         <div className="mt-3 flex flex-wrap gap-2">
           {verify && !anchored && (
             <>
-              <Show when="signed-in">
+              {account && (
                 <Button variant="primary" onClick={anchor} disabled={busy !== null}>
                   {busy === "anchor" ? "Waiting for the transaction…" : "Register on-chain"}
                 </Button>
-              </Show>
-              <Show when="signed-out">
-                <SignInButton>
-                  <Button variant="primary">Sign in to register on-chain</Button>
-                </SignInButton>
-              </Show>
+              )}
+              {ready && !account && (
+                <Link
+                  href={`/sign-in?next=${encodeURIComponent(`/reports/${report.report_id}`)}`}
+                  className="terminal border border-(--l-ink) bg-(--l-ink) px-3 py-1 text-xl leading-tight text-(--l-paper) hover:bg-(--l-pink) hover:text-(--l-ink)"
+                >
+                  Sign in to register on-chain
+                </Link>
+              )}
             </>
           )}
           {anchored && (

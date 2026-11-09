@@ -1,39 +1,38 @@
-"""Accounts: Clerk token verification and per-user report access (no network: signing keys are local)."""
-import base64
+"""Accounts: password sign-in, sessions, and per-user report access."""
+import hashlib
 import time
 import uuid
+from urllib.parse import parse_qs, urlparse
 
-import jwt
 import pytest
-from cryptography.hazmat.primitives.asymmetric import rsa
 from fastapi.testclient import TestClient
 
 from app import auth, jobs, main, pipeline, store
 from app.schemas import Explanation, Report, RiskLevel
 
-HOST = "clerk.vigil.test"
-ISSUER = f"https://{HOST}"
-KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
-OTHER_KEY = rsa.generate_private_key(public_exponent=65537, key_size=2048)
+ORIGIN = "http://localhost:3000"
+PASSWORD = "correct horse battery"
 client = TestClient(main.app)
 
 
 @pytest.fixture(autouse=True)
-def clerk(monkeypatch):
-    encoded = base64.b64encode(f"{HOST}$".encode()).decode().rstrip("=")
-    monkeypatch.setenv("CLERK_PUBLISHABLE_KEY", f"pk_test_{encoded}")
+def fresh(monkeypatch):
     monkeypatch.delenv("CORS_ORIGINS", raising=False)
-    monkeypatch.setattr(auth, "_signing_key", lambda token, issuer: KEY.public_key())
+    monkeypatch.delenv("FRONTEND_URL", raising=False)
+    monkeypatch.delenv("GOOGLE_CLIENT_ID", raising=False)
+    monkeypatch.delenv("GOOGLE_CLIENT_SECRET", raising=False)
     main._hits.clear()
 
 
-def _token(sub="user_a", key=KEY, issuer=ISSUER, exp_in=60, **extra):
+def _session(user):
+    token = uuid.uuid4().hex
     now = int(time.time())
-    return jwt.encode({"sub": sub, "iss": issuer, "iat": now - 1, "exp": now + exp_in, **extra}, key, algorithm="RS256")
+    store.create_session(hashlib.sha256(token.encode()).hexdigest(), user, now, now + 60)
+    return token
 
 
 def _as(user):
-    return {"Authorization": f"Bearer {_token(user)}"}
+    return {"Cookie": f"{auth.COOKIE}={_session(user)}", "Origin": ORIGIN}
 
 
 def _report(owner, indicators=(), level=RiskLevel.HIGH):
@@ -46,41 +45,247 @@ def _report(owner, indicators=(), level=RiskLevel.HIGH):
 
 
 def _user():
-    return f"user_{uuid.uuid4().hex[:8]}"
+    return store.create_user(f"{uuid.uuid4().hex}@example.com", "unused", 0)
 
 
-@pytest.mark.parametrize("token", [
-    lambda: _token(exp_in=-60),
-    lambda: _token(key=OTHER_KEY),
-    lambda: _token(issuer="https://evil.test"),
-    lambda: "not-a-token",
-])
-def test_bad_tokens_are_rejected_not_treated_as_guests(token):
-    r = client.post("/api/jobs", json={"input": "https://x.example/"}, headers={"Authorization": f"Bearer {token()}"})
-    assert r.status_code == 401
+def _email():
+    return f"{uuid.uuid4().hex[:10]}@example.com"
 
 
-def test_non_bearer_header_is_rejected():
-    assert client.get("/api/stats", headers={"Authorization": "Basic abc"}).status_code == 401
+def _browser():
+    """Its own cookie jar, so sign-ins here can't leak into other tests."""
+    return TestClient(main.app, headers={"Origin": ORIGIN})
 
 
-def test_unsigned_token_is_rejected():
-    now = int(time.time())
-    forged = jwt.encode({"sub": "user_a", "iss": ISSUER, "iat": now, "exp": now + 60}, "", algorithm="none")
-    assert client.get("/api/stats", headers={"Authorization": f"Bearer {forged}"}).status_code == 401
+def _signup(browser, email, password=PASSWORD):
+    return browser.post("/api/auth/signup", json={"email": email, "password": password})
 
 
-def test_wrong_authorized_party_is_rejected(monkeypatch):
+def test_sign_up_starts_a_session_with_a_protected_cookie():
+    browser, email = _browser(), _email()
+    r = _signup(browser, email)
+    assert r.status_code == 201 and r.json()["user"]["email"] == email
+    cookie = r.headers["set-cookie"].lower()
+    assert "httponly" in cookie and "samesite=lax" in cookie
+    assert browser.get("/api/auth/me").json()["user"]["email"] == email
+    assert browser.get("/api/stats").status_code == 200
+
+
+def test_password_and_token_are_never_stored_in_the_clear():
+    browser, email = _browser(), _email()
+    _signup(browser, email)
+    stored = store.find_user(email)[1]
+    assert stored.startswith("$argon2id$") and PASSWORD not in stored
+    token = browser.cookies[auth.COOKIE]
+    assert not store._db.query("SELECT 1 FROM sessions WHERE token_hash=?", (token,))
+
+
+def test_email_is_case_insensitive_and_unique():
+    email = _email()
+    assert _signup(_browser(), email).status_code == 201
+    assert _signup(_browser(), email.upper()).status_code == 409
+    login = _browser().post("/api/auth/login", json={"email": email.upper(), "password": PASSWORD})
+    assert login.status_code == 200
+
+
+@pytest.mark.parametrize("email,password", [("not-an-email", PASSWORD), ("a@b", PASSWORD), ("x@example.com", "short"),
+                                            ("x@example.com", "x" * 129)])
+def test_bad_sign_up_details_are_refused(email, password):
+    assert _signup(_browser(), email, password).status_code == 400
+
+
+def test_wrong_password_and_unknown_email_look_the_same():
+    email = _email()
+    _signup(_browser(), email)
+    wrong = _browser().post("/api/auth/login", json={"email": email, "password": "wrong password here"})
+    unknown = _browser().post("/api/auth/login", json={"email": _email(), "password": PASSWORD})
+    assert wrong.status_code == unknown.status_code == 401 and wrong.json() == unknown.json()
+    assert "set-cookie" not in wrong.headers
+
+
+def test_sign_out_ends_the_session_on_the_server():
+    browser = _browser()
+    _signup(browser, _email())
+    token = browser.cookies[auth.COOKIE]
+    assert browser.post("/api/auth/logout").status_code == 200
+    replay = {"Cookie": f"{auth.COOKIE}={token}"}
+    assert client.get("/api/stats", headers=replay).status_code == 401
+
+
+def test_expired_session_is_rejected():
+    user, token = _user(), uuid.uuid4().hex
+    store.create_session(hashlib.sha256(token.encode()).hexdigest(), user, 1, int(time.time()) - 1)
+    assert client.get("/api/stats", headers={"Cookie": f"{auth.COOKIE}={token}"}).status_code == 401
+
+
+def test_bad_cookie_is_rejected_and_cleared_not_treated_as_a_guest():
+    r = client.post("/api/jobs", json={"input": "https://x.example/"},
+                    headers={"Cookie": f"{auth.COOKIE}=forged", "Origin": ORIGIN})
+    assert r.status_code == 401 and auth.COOKIE in r.headers["set-cookie"]
+
+
+def test_session_check_clears_a_stale_cookie_without_an_error():
+    r = client.get("/api/auth/me", headers={"Cookie": f"{auth.COOKIE}=stale"})
+    assert r.status_code == 200 and r.json()["user"] is None and auth.COOKIE in r.headers["set-cookie"]
+
+
+def test_guest_session_check_is_empty():
+    assert TestClient(main.app).get("/api/auth/me").json() == {"user": None, "google": False}
+
+
+@pytest.mark.parametrize("origin", ["https://evil.test", None])
+def test_cookie_post_from_another_site_is_refused(origin):
+    headers = _as(_user())
+    headers.pop("Origin")
+    if origin:
+        headers["Origin"] = origin
+    assert client.post("/api/jobs", json={"input": "https://x.example/"}, headers=headers).status_code == 403
+
+
+@pytest.mark.parametrize("path", ["signup", "login", "logout"])
+def test_account_actions_need_an_allowed_origin(path):
+    r = TestClient(main.app, headers={"Origin": "https://evil.test"}).post(
+        f"/api/auth/{path}", json={"email": _email(), "password": PASSWORD})
+    assert r.status_code == 403
+
+
+def test_wildcard_origin_is_never_allowed(monkeypatch):
+    monkeypatch.setenv("CORS_ORIGINS", "*")
+    assert auth.allowed_origins() == []
+
+
+def test_https_site_gets_a_secure_cookie(monkeypatch):
     monkeypatch.setenv("CORS_ORIGINS", "https://vigil.test")
-    bad = {"Authorization": f"Bearer {_token(azp='https://evil.test')}"}
-    good = {"Authorization": f"Bearer {_token(azp='https://vigil.test')}"}
-    assert client.get("/api/stats", headers=bad).status_code == 401
-    assert client.get("/api/stats", headers=good).status_code == 200
+    r = TestClient(main.app, headers={"Origin": "https://vigil.test"}).post(
+        "/api/auth/signup", json={"email": _email(), "password": PASSWORD})
+    assert r.status_code == 201 and "secure" in r.headers["set-cookie"].lower()
 
 
-def test_token_without_server_config_fails_closed(monkeypatch):
-    monkeypatch.delenv("CLERK_PUBLISHABLE_KEY")
-    assert client.post("/api/jobs", json={"input": "https://x.example/"}, headers=_as("user_a")).status_code == 503
+def test_password_guessing_is_rate_limited():
+    browser, email = _browser(), _email()
+    codes = [browser.post("/api/auth/login", json={"email": email, "password": "wrong password"}).status_code
+             for _ in range(main.AUTH_RATE + 1)]
+    assert codes[:-1] == [401] * main.AUTH_RATE and codes[-1] == 429
+
+
+class _GoogleReply:
+    def __init__(self, body):
+        self.body = body
+
+    def raise_for_status(self):
+        pass
+
+    def json(self):
+        return self.body
+
+
+@pytest.fixture
+def google(monkeypatch):
+    """Google's two server-side replies, replaced so no test touches the network."""
+    monkeypatch.setenv("GOOGLE_CLIENT_ID", "client-id")
+    monkeypatch.setenv("GOOGLE_CLIENT_SECRET", "client-secret")
+    identity = {}
+    sent = {}
+
+    class FakeClient:
+        def __init__(self, **_):
+            pass
+
+        def __enter__(self):
+            return self
+
+        def __exit__(self, *_):
+            return False
+
+        def post(self, url, data):
+            sent.update(data)
+            return _GoogleReply({"access_token": "access"})
+
+        def get(self, url, headers):
+            return _GoogleReply(identity)
+    monkeypatch.setattr(auth.httpx, "Client", FakeClient)
+    return identity, sent
+
+
+def _google_login(browser, next_path="/history"):
+    start = browser.get("/api/auth/google/start", params={"next": next_path}, follow_redirects=False)
+    state = parse_qs(urlparse(start.headers["location"]).query)["state"][0]
+    return browser.get("/api/auth/google/callback", params={"state": state, "code": "abc"}, follow_redirects=False)
+
+
+def test_google_start_uses_pkce_and_only_asks_for_email(google):
+    r = _browser().get("/api/auth/google/start", follow_redirects=False)
+    query = parse_qs(urlparse(r.headers["location"]).query)
+    assert r.status_code == 303 and r.headers["location"].startswith(auth.GOOGLE_AUTH)
+    assert query["scope"] == ["openid email"] and query["code_challenge_method"] == ["S256"] and query["state"]
+    assert "client-secret" not in r.headers["location"]
+
+
+def test_google_sign_in_creates_a_session_and_returns_to_the_page(google):
+    identity, sent = google
+    email = _email()
+    identity.update(sub=uuid.uuid4().hex, email=email.upper(), email_verified=True)
+    browser = _browser()
+    r = _google_login(browser)
+    assert r.status_code == 303 and r.headers["location"] == f"{ORIGIN}/history" and sent["code_verifier"]
+    assert browser.get("/api/auth/me").json()["user"]["email"] == email
+
+
+def test_repeat_google_sign_in_is_the_same_account(google):
+    identity, _ = google
+    identity.update(sub=uuid.uuid4().hex, email=_email(), email_verified=True)
+    a, b = _browser(), _browser()
+    _google_login(a), _google_login(b)
+    assert a.get("/api/auth/me").json()["user"]["id"] == b.get("/api/auth/me").json()["user"]["id"]
+
+
+def test_google_link_locks_out_whoever_registered_the_email_first(google):
+    identity, _ = google
+    email = _email()
+    squatter = _browser()
+    _signup(squatter, email)
+    identity.update(sub=uuid.uuid4().hex, email=email, email_verified=True)
+    _google_login(_browser())
+    assert squatter.get("/api/stats").status_code == 401
+    assert _browser().post("/api/auth/login", json={"email": email, "password": PASSWORD}).status_code == 401
+
+
+def test_unverified_google_email_is_refused(google):
+    identity, _ = google
+    identity.update(sub=uuid.uuid4().hex, email=_email(), email_verified=False)
+    r = _google_login(_browser())
+    assert r.headers["location"].endswith("/sign-in?error=google") and auth.COOKIE not in r.cookies
+
+
+def test_google_callback_with_wrong_state_is_refused(google):
+    browser = _browser()
+    browser.get("/api/auth/google/start", follow_redirects=False)
+    r = browser.get("/api/auth/google/callback", params={"state": "forged", "code": "abc"}, follow_redirects=False)
+    assert r.headers["location"].endswith("/sign-in?error=google")
+
+
+def test_google_callback_without_the_cookie_is_refused(google):
+    r = _browser().get("/api/auth/google/callback", params={"state": "x", "code": "abc"}, follow_redirects=False)
+    assert r.headers["location"].endswith("/sign-in?error=google")
+
+
+@pytest.mark.parametrize("target", ["https://evil.test/", "//evil.test", "/\\\\evil.test"])
+def test_google_never_redirects_off_site(google, target):
+    identity, _ = google
+    identity.update(sub=uuid.uuid4().hex, email=_email(), email_verified=True)
+    assert _google_login(_browser(), target).headers["location"] == f"{ORIGIN}/investigate"
+
+
+def test_google_is_off_without_configuration():
+    assert _browser().get("/api/auth/google/start", follow_redirects=False).status_code == 404
+
+
+def test_password_cannot_open_a_google_only_account(google):
+    identity, _ = google
+    email = _email()
+    identity.update(sub=uuid.uuid4().hex, email=email, email_verified=True)
+    _google_login(_browser())
+    assert _browser().post("/api/auth/login", json={"email": email, "password": ""}).status_code == 401
 
 
 @pytest.mark.parametrize("path", ["/api/reports", "/api/stats"])

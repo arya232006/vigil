@@ -11,7 +11,7 @@ from collections import defaultdict, deque
 
 from typing import Annotated
 
-from fastapi import FastAPI, HTTPException, Query, Request
+from fastapi import FastAPI, HTTPException, Query, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
 from fastapi.responses import PlainTextResponse
@@ -73,13 +73,14 @@ class _Hardening:
 
 # Added last means outermost: the host check runs first, and CORS headers also reach error responses.
 app.add_middleware(_Hardening)
-app.add_middleware(CORSMiddleware, allow_origins=auth.cors_origins(), allow_methods=["GET", "POST"],
-                   allow_headers=["Authorization", "Content-Type"], expose_headers=["X-Cache"])
+app.add_middleware(CORSMiddleware, allow_origins=auth.allowed_origins(), allow_credentials=True,
+                   allow_methods=["GET", "POST"], allow_headers=["Content-Type"], expose_headers=["X-Cache"])
 app.add_middleware(TrustedHostMiddleware,                  # stops DNS rebinding against a locally running API
                    allowed_hosts=[h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]").split(",")])
 
 RATE = int(os.getenv("RATE_LIMIT_PER_MIN", "20"))
 CHAIN_RATE = int(os.getenv("CHAIN_RATE_LIMIT_PER_MIN", "120"))
+AUTH_RATE = int(os.getenv("AUTH_RATE_LIMIT_PER_MIN", "10"))
 _hits: dict[tuple[str, str], deque] = defaultdict(deque)
 
 
@@ -101,6 +102,44 @@ def _rate_limit(ip: str, bucket: str = "analysis", limit: int | None = None):
     if len(q) >= limit:
         raise HTTPException(429, f"Rate limit: {limit} requests per minute")
     q.append(now)
+
+
+@app.post("/api/auth/signup", status_code=201)
+def signup(credentials: auth.Credentials, request: Request, response: Response):
+    auth.require_allowed_origin(request)
+    _rate_limit(_client_ip(request), "auth", AUTH_RATE)
+    return auth.sign_up(credentials, response)
+
+
+@app.post("/api/auth/login")
+def login(credentials: auth.Credentials, request: Request, response: Response):
+    """Limited per IP and per email, so spreading guesses across addresses doesn't help against one account."""
+    auth.require_allowed_origin(request)
+    _rate_limit(_client_ip(request), "auth", AUTH_RATE)
+    _rate_limit(credentials.email.strip().lower()[:254], "auth-email", AUTH_RATE)
+    return auth.sign_in(credentials, response)
+
+
+@app.post("/api/auth/logout")
+def logout(request: Request, response: Response):
+    auth.require_allowed_origin(request)
+    return auth.sign_out(request, response)
+
+
+@app.get("/api/auth/me")
+def me(request: Request, response: Response):
+    return {"user": auth.account(request, response), "google": auth.google_enabled()}
+
+
+@app.get("/api/auth/google/start")
+def google_start(next: Annotated[str, Query(max_length=512)] = auth.DEFAULT_NEXT):
+    return auth.google_start(next)
+
+
+@app.get("/api/auth/google/callback")
+def google_callback(request: Request):
+    _rate_limit(_client_ip(request), "auth", AUTH_RATE)
+    return auth.google_finish(request)
 
 
 @app.post("/api/analyze", response_model=Report)

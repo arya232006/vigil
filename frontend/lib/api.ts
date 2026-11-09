@@ -1,7 +1,7 @@
 "use client";
 
-import { useAuth } from "@clerk/nextjs";
 import { useEffect, useState } from "react";
+import { useSession, type Account } from "./session";
 import type { ChainVerify, JobInfo, Report } from "./types";
 
 export const API = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
@@ -15,12 +15,6 @@ export class ApiError extends Error {
   }
 }
 
-let getAuthToken: () => Promise<string | null> = async () => null;
-
-export function setAuthTokenGetter(getter: () => Promise<string | null>) {
-  getAuthToken = getter;
-}
-
 const FRIENDLY: Record<number, string> = {
   401: "Please sign in again to continue.",
   429: "Too many requests. Wait a minute and try again.",
@@ -29,19 +23,9 @@ const FRIENDLY: Record<number, string> = {
 };
 
 async function request(path: string, init?: RequestInit): Promise<Response> {
-  // A signed-in user must never fall back to a guest request: their report would be saved with no owner.
-  let token: string | null;
-  try {
-    token = await getAuthToken();
-  } catch {
-    throw new ApiError("Your session could not be confirmed. Reload the page and try again.", 401);
-  }
-  const headers = new Headers(init?.headers);
-  if (token) headers.set("Authorization", `Bearer ${token}`);
-
   let res: Response;
   try {
-    res = await fetch(`${API}${path}`, { ...init, headers });
+    res = await fetch(`${API}${path}`, { ...init, credentials: "include" });
   } catch {
     throw new ApiError(`Can't reach the Vigil API at ${API}. Is the backend running?`, 0);
   }
@@ -49,7 +33,8 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
   const body = await res.json().catch(() => null);
   const detail = typeof body?.detail === "string" ? body.detail : null;
   const validation = res.status === 422 ? "That input isn't valid. Check it isn't empty or too long." : null;
-  throw new ApiError(FRIENDLY[res.status] ?? validation ?? detail ?? `Request failed (HTTP ${res.status})`, res.status);
+  const friendly = path.startsWith("/api/auth/") ? undefined : FRIENDLY[res.status]; // sign-in errors say what to fix
+  throw new ApiError(friendly ?? validation ?? detail ?? `Request failed (HTTP ${res.status})`, res.status);
 }
 
 export async function getJson<T>(path: string): Promise<T> {
@@ -83,6 +68,12 @@ export async function investigate(
   return job;
 }
 
+export const signIn = (email: string, password: string) =>
+  postJson<{ user: Account }>("/api/auth/login", { email, password });
+export const signUp = (email: string, password: string) =>
+  postJson<{ user: Account }>("/api/auth/signup", { email, password });
+export const signOut = () => postJson<unknown>("/api/auth/logout");
+
 export const analyzeEmail = (raw: string) => postJson<Report>("/api/analyze/email", { raw, live_dns: true });
 export const anchorReport = (id: string) => postJson<unknown>(`/api/reports/${id}/anchor`);
 export const chainVerify = (id: string) => getJson<ChainVerify>(`/api/reports/${id}/chain-verify`);
@@ -92,14 +83,15 @@ export const errorMessage = (e: unknown) => (e instanceof Error ? e.message : "S
 
 /** GET `path` (skipped when null). Change `reloadKey` to fetch again. */
 export function useApi<T>(path: string | null, reloadKey: number = 0) {
-  const { isLoaded, userId } = useAuth();
-  const key = path === null ? null : `${path}#${reloadKey}#${userId ?? ""}`;
+  const { ready, account } = useSession();
+  const userId = account?.id ?? "";
+  const key = path === null ? null : `${path}#${reloadKey}#${userId}`;
   const [state, setState] = useState<{ key: string | null; data?: T; error?: string }>({ key: null });
 
   useEffect(() => {
-    if (path === null || !isLoaded) return; // wait for the session, so the first request isn't sent as a guest
+    if (path === null || !ready) return; // wait for the session, so results are keyed to the right account
     let current = true;
-    const k = `${path}#${reloadKey}#${userId ?? ""}`;
+    const k = `${path}#${reloadKey}#${userId}`;
     getJson<T>(path).then(
       (data) => current && setState({ key: k, data }),
       (e) => current && setState({ key: k, error: errorMessage(e) }),
@@ -107,7 +99,7 @@ export function useApi<T>(path: string | null, reloadKey: number = 0) {
     return () => {
       current = false;
     };
-  }, [path, reloadKey, isLoaded, userId]);
+  }, [path, reloadKey, ready, userId]);
 
   const settled = state.key === key;
   return {

@@ -166,6 +166,8 @@ and chose not to deploy because it missed real scams.
 - **Training data is mostly English**, with some Hinglish. Other languages are less reliable.
 - **An on-chain record proves integrity, not truth.** It shows a report hasn't changed since it was anchored, not that
   its conclusions are right.
+- **Password accounts have no reset or email verification yet**, because Vigil doesn't send email. Signing in with
+  Google for the same address links the accounts and removes the password.
 - **Message checks are weaker without System-2.** Scam recall is 95.5% with it and 49.4% on rules and System-1 alone.
 
 <br>
@@ -193,9 +195,9 @@ scripts/run_api.sh
 (cd frontend && npm run build && npm run start -- -p 3100)
 ```
 
-Reports go to Postgres when `DATABASE_URL` is set in `.env`, otherwise to a local SQLite file. Accounts use Clerk: put
-`CLERK_PUBLISHABLE_KEY` in `.env` and the Clerk keys in `frontend/.env.local`. Without an account you can still run
-investigations, but History and the Dashboard need sign-in.
+Reports go to Postgres when `DATABASE_URL` is set in `.env`, otherwise to a local SQLite file. Accounts are stored in the
+same database, so no extra service is needed. Without an account you can still run investigations, but History and the
+Dashboard need sign-in.
 
 A Hardhat node keeps its chain in memory: after restarting it, run `deploy:local` again. Reports anchored earlier show
 as not anchored and can be registered again.
@@ -295,10 +297,13 @@ By default the API binds to localhost and accepts only local hosts and origins. 
 | `ALLOWED_HOSTS` | The API's own hostname, comma-separated if there are several |
 | `CORS_ORIGINS` | The frontend's exact origin, such as `https://app.example.com` |
 | `DATABASE_URL` | A Postgres connection string. Without it, reports stay in a local SQLite file |
-| `CLERK_PUBLISHABLE_KEY` | The same Clerk instance the frontend uses. The backend needs no Clerk secret |
+| `GOOGLE_CLIENT_ID` / `GOOGLE_CLIENT_SECRET` | From a Google Cloud OAuth web client, for "Continue with Google". Leave unset to turn it off |
+| `GOOGLE_REDIRECT_URI` | `https://<your-api-host>/api/auth/google/callback`, matching the Google Cloud setting exactly |
+| `FRONTEND_URL` | The frontend's origin, where people return after Google sign-in. Defaults to the first `CORS_ORIGINS` entry |
+| `SESSION_COOKIE_SAMESITE` | Leave as `lax` when the frontend and API share a site, like `example.com` and `api.example.com`. Use `none` only across different sites, where some browsers may still block the cookie |
 | `REPORT_RETENTION_DAYS` | The number of days to keep reports. The default, `0`, keeps them forever |
 
-In `frontend/.env.local`, set `NEXT_PUBLIC_API_URL` and the Clerk keys, then rebuild, because `NEXT_PUBLIC_` values are
+In `frontend/.env.local`, set `NEXT_PUBLIC_API_URL`, then rebuild, because `NEXT_PUBLIC_` values are
 fixed at build time. `NEXT_PUBLIC_TRUSTED_REPORTER` must be the backend signer's public address.
 
 The backend also has a container image, which runs as a non-root user and stores SQLite in `/data`:
@@ -331,6 +336,8 @@ reverse proxy, set `FORWARDED_ALLOW_IPS` to the proxy's address, or every visito
 | `RATE_LIMIT_PER_MIN` | `20` | New analyses per minute, per IP |
 | `CHAIN_RATE_LIMIT_PER_MIN` | `120` | Chain status, lookup and verify calls per minute, per IP |
 | `ANCHOR_MAX_PER_HOUR` | `60` | Cap on on-chain transactions per hour |
+| `AUTH_RATE_LIMIT_PER_MIN` | `10` | Sign-up and sign-in attempts per minute, per IP and per email |
+| `SESSION_TTL_DAYS` | `14` | How long a sign-in lasts |
 | `CHAIN_TRUSTED_REPORTER` | Signer's address | Only needed if the signing key isn't on this server. Records from other addresses are rejected |
 | `JOB_WORKERS` | `4` | Background analysis workers |
 | `CACHE_TTL_URL` / `CACHE_TTL_MESSAGE` | `600` / `3600` | Result cache lifetime, in seconds |
@@ -370,7 +377,7 @@ Sample reports: [phishing URL](docs/sample_report_phishing_url.json) ·
 backend/app/
   main.py            FastAPI endpoints          pipeline.py   investigation orchestration
   risk.py            deterministic risk engine  store.py      reports, hashing, correlation index
-  auth.py            Clerk session checks       jobs.py       async jobs and the result cache
+  auth.py            accounts and sessions      jobs.py       async jobs and the result cache
   email_pipeline.py  .eml investigation         schemas.py    request and report models
   checks/            fetcher (SSRF-safe) · domain · tls · page/headers · threatintel · message rules · email_auth
   chain.py           on-chain anchoring, verification and domain lookup
@@ -423,7 +430,7 @@ tests/               backend tests · run_cases.py (end-to-end suite)
 
 [Next.js](https://nextjs.org/) · [FastAPI](https://fastapi.tiangolo.com/) · [scikit-learn](https://scikit-learn.org/) ·
 [MLX](https://github.com/ml-explore/mlx) · [mlx-lm](https://github.com/ml-explore/mlx-lm) · [Ollama](https://ollama.com/) ·
-[Hardhat](https://hardhat.org/) · [ethers](https://docs.ethers.org/v6/) · [Clerk](https://clerk.com/)
+[Hardhat](https://hardhat.org/) · [ethers](https://docs.ethers.org/v6/)
 
 **Team**
 

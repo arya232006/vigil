@@ -16,8 +16,11 @@ Full typed schema: `backend/app/schemas.py` (the `Report` model is the contract)
 | GET | `/api/health` | Feed + model status |
 | GET | `/api/models` | Evaluation metrics of the self-hosted models (show these in the UI!) |
 
-**Accounts.** Send a Clerk session token as `Authorization: Bearer <token>`. With no header the caller is a guest; an
-invalid or expired token is a **401**, never a guest. Reports from signed-in users are readable only by their owner
+**Accounts.** `POST /api/auth/signup` and `POST /api/auth/login` take `{"email", "password"}` and set an HttpOnly session
+cookie. `POST /api/auth/logout` ends the session, and `GET /api/auth/me` returns `{"user": {"id", "email"} | null, "google": bool}`.
+For Google, send the browser to `GET /api/auth/google/start?next=/path`. Browsers must send credentials (`credentials: "include"`). With no cookie the caller is a guest; an
+invalid or expired cookie is a **401**, never a guest. POST requests that carry the cookie, and the sign-up, login and
+logout calls, must come from an origin in `CORS_ORIGINS` (**403** otherwise). Reports from signed-in users are readable only by their owner
 (another user gets **404**, on jobs too). Guest reports have no owner and open for anyone with the link. In
 `correlations[]`, a report owned by someone else has an empty `report_id`: only the shared indicators and risk level
 are shown.
