@@ -213,6 +213,6 @@ def analyze_email(raw: str, live_dns: bool = True, owner_id: str | None = None) 
                     risk_level=level, risk_score=score, confidence=conf, findings=findings, checks=checks,
                     indicators=indicators, model_scores=body.model_scores if body else [],
                     linked_reports=([body.report_id] + body.linked_reports) if body else [],
-                    explanation=pipeline._template_explanation(level, findings, p.subject),
+                    explanation=pipeline._explain(level, findings, p.subject or info.from_address or "email"),   # vigil-s2; template fallback
                     recommendations=recs, limitations=limitations, email=info)
     return pipeline._finalize(report, inds, owner_id=owner_id)

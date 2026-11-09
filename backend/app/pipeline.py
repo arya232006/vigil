@@ -431,6 +431,8 @@ def analyze_message(text: str, owner_id: str | None = None) -> Report:
                                        if f.severity != Severity.INFO][:6], generated_by=s2_model)
     else:
         expl = _template_explanation(level, findings, text[:200])
+        if fast_path:
+            expl.generated_by = "system1:fast-path"     # confidently benign: System-2 was not needed
     report = Report(report_id=rid, input_type="message", input=text, analyzed_at=now(), risk_level=level,
                     risk_score=score, confidence=conf, findings=findings, checks=checks, indicators=inds,
                     model_scores=[m for m in [s1] if m] + ([] if not s2 else [

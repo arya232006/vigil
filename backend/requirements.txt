@@ -7,11 +7,11 @@ cryptography>=43
 idna>=3.7
 certifi>=2024.7.4
 tldextract>=5.1
-scikit-learn>=1.5
-scipy>=1.13
-numpy>=1.26
+scikit-learn==1.9.1   # pinned: the pickled System-1 models need this exact version
+scipy==1.18.1
+numpy==2.5.4
 pandas>=2.2
-joblib>=1.4
+joblib==1.6.0
 web3>=7
 psycopg[binary,pool]>=3.2
 PyJWT[crypto]>=2.9

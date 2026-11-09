@@ -160,7 +160,18 @@ from . import jobs  # noqa: E402
 from .schemas import JobInfo, JobRequest  # noqa: E402
 
 
+TRUST_PROXY = os.getenv("TRUST_PROXY", "0") == "1"     # set behind a reverse proxy (Hugging Face Spaces, tunnels)
+
+
 def _client_ip(request: Request) -> str:
+    """Real visitor IP. Behind a trusted proxy every request comes from the proxy, so per-IP rate limiting would
+    become one global limit; use the left-most X-Forwarded-For entry (or CF-Connecting-IP) instead."""
+    if TRUST_PROXY:
+        cf = request.headers.get("cf-connecting-ip")
+        xff = request.headers.get("x-forwarded-for", "")
+        ip = cf or (xff.split(",")[0].strip() if xff else "")
+        if ip:
+            return ip[:64]
     return request.client.host if request.client else "unknown"
 
 
@@ -211,7 +222,7 @@ EMAIL_MAX_BODY_BYTES = int(os.getenv("EMAIL_MAX_BODY_BYTES", str(3 * 1024 * 1024
 async def analyze_email(request: Request, user: auth.Viewer):
     """Analyse a raw email (.eml source): SPF/DKIM/DMARC + alignment, sender identity, deceptive links,
     attachments, Received chain, sender-domain DNS posture, plus the message pipeline on subject + body."""
-    _rate_limit(request.client.host if request.client else "unknown")
+    _rate_limit(_client_ip(request))
     declared = request.headers.get("content-length", "")
     if declared.isdigit() and int(declared) > EMAIL_MAX_BODY_BYTES:
         raise HTTPException(413, f"Email too large (max {EMAIL_MAX_BODY_BYTES} bytes of JSON)")

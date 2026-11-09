@@ -58,7 +58,10 @@ export function explainedBy(generatedBy: string): { label: string; selfHosted: b
     return { label: "Explained by vigil-s2, our fine-tuned self-hosted model", selfHosted: true };
   }
   if (generatedBy.startsWith("fallback:")) return { label: "Explained by a local backup model", selfHosted: true };
-  return { label: "Rule-based summary (AI model offline)", selfHosted: false };
+  if (generatedBy.startsWith("system1:")) {
+    return { label: "Clear case answered by our System-1 classifiers; the deeper model was not needed", selfHosted: true };
+  }
+  return { label: "Rule-based summary", selfHosted: false };
 }
 
 /** The domain the backend commits as the report's on-chain indicator (see chain.report_domain). */

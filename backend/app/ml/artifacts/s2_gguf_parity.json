@@ -1,0 +1,35 @@
+{
+  "q4_k_m": {
+    "model": "vigil-s2 GGUF Q4_K_M (llama.cpp)",
+    "n": 169,
+    "json_valid_rate": 0.994,
+    "binary_accuracy": 0.905,
+    "three_class_accuracy": 0.811,
+    "scam_recall": 0.933,
+    "legit_false_positive_rate": 0.161,
+    "evidence_grounding_rate": 0.975,
+    "avg_latency_ms": 497
+  },
+  "q8_0": {
+    "model": "vigil-s2 GGUF Q8_0 (llama.cpp)",
+    "n": 169,
+    "json_valid_rate": 1.0,
+    "binary_accuracy": 0.935,
+    "three_class_accuracy": 0.832,
+    "scam_recall": 0.933,
+    "legit_false_positive_rate": 0.081,
+    "evidence_grounding_rate": 0.994,
+    "avg_latency_ms": 661
+  },
+  "mlx_reference": {
+    "model": "vigil-s2 (qwen3-1.7b + our LoRA)",
+    "n": 169,
+    "json_valid_rate": 1.0,
+    "binary_accuracy": 0.929,
+    "three_class_accuracy": 0.825,
+    "scam_recall": 0.933,
+    "legit_false_positive_rate": 0.097,
+    "evidence_grounding_rate": 0.987,
+    "avg_latency_ms": 631
+  }
+}
