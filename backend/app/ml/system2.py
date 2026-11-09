@@ -248,6 +248,7 @@ def analyze_message(text: str) -> tuple[dict | None, str, int]:
 
 def explain(risk_level: str, findings: list[dict], subject: str) -> tuple[dict | None, str]:
     payload = json.dumps({"subject": subject[:300], "risk_level": risk_level, "findings": findings}, ensure_ascii=False)
+    payload = re.sub(r"(?i)<(/?)findings", r"[\1findings", payload)       # findings quote attacker-controlled text
     user = f"<findings>\n{payload[:7000]}\n</findings>"
     raw, used = _student(EXPLAIN_SYSTEM, user, 450), f"s2:{S2_NAME}"
     out = _json(raw) if raw else None

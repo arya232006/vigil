@@ -11,6 +11,8 @@ import json
 import logging
 import os
 import threading
+import time
+from collections import deque
 from datetime import datetime, timezone
 from functools import wraps
 from pathlib import Path
@@ -27,6 +29,10 @@ ABI_PATH = Path(__file__).resolve().parent / "data" / "ThreatRegistry.abi.json"
 ZERO_HASH = "0x" + "00" * 32
 EXPLORERS = {11155111: "https://sepolia.etherscan.io"}
 RECEIPT_TIMEOUT_S = 120
+LOCAL_CHAIN_ID = 31337
+PUBLIC_TEST_ADDRESS = "0xf39fd6e51aad88f6f4ce6ab8827279cfffb92266"      # Hardhat account #0: its key is published
+ANCHOR_WINDOW_S = 3600
+_recent_anchors: deque[float] = deque()
 
 # Serialises check-then-send so concurrent requests cannot anchor a report twice or reuse a nonce.
 _send_lock = threading.Lock()
@@ -37,6 +43,10 @@ class ChainError(Exception):
 
 
 class ChainNotConfigured(ChainError):
+    pass
+
+
+class ChainRateLimited(ChainError):
     pass
 
 
@@ -70,6 +80,23 @@ def _signer(w3):
     if not key:
         raise ChainNotConfigured("Blockchain signer is not configured (set CHAIN_PRIVATE_KEY)")
     return w3.eth.account.from_key(key)
+
+
+def _trusted_reporter(w3) -> str:
+    """The only address whose records count. Anyone can write to the registry, so a matching hash alone proves nothing."""
+    configured = os.getenv("CHAIN_TRUSTED_REPORTER", "").strip()
+    return (configured or _signer(w3).address).lower()
+
+
+def _spend_anchor_budget() -> None:
+    """Every anchor costs gas, so cap them across all callers. Caller holds _send_lock."""
+    limit = int(os.getenv("ANCHOR_MAX_PER_HOUR", "60"))
+    now = time.monotonic()
+    while _recent_anchors and now - _recent_anchors[0] > ANCHOR_WINDOW_S:
+        _recent_anchors.popleft()
+    if len(_recent_anchors) >= limit:
+        raise ChainRateLimited("Too many on-chain registrations right now. Try again later.")
+    _recent_anchors.append(now)
 
 
 def _hex(value: bytes) -> str:
@@ -132,11 +159,14 @@ def anchor(report: Report) -> dict:
     w3, contract = _connect()
     account = _signer(w3)
     chain_id = w3.eth.chain_id
+    if chain_id != LOCAL_CHAIN_ID and account.address.lower() == PUBLIC_TEST_ADDRESS:
+        raise ChainNotConfigured("CHAIN_PRIVATE_KEY is Hardhat's public test key. Use a dedicated wallet on this network.")
     with _send_lock:
         existing = store.get_anchor(report.report_id, chain_id, contract.address)
         if existing and _is_on_chain(contract, existing):
             return {**existing, "explorer_url": _explorer_tx(chain_id, existing["tx_hash"]), "already_anchored": True}
 
+        _spend_anchor_budget()
         domain = report_domain(report)
         indicator = indicator_hash(domain) if domain else ZERO_HASH
         registry_id, tx_hash, block = _submit(w3, contract, account, report.report_hash, indicator)
@@ -168,9 +198,12 @@ def verify(report: Report) -> dict:
 
     registry_id = record["registry_id"]
     reporter, timestamp, onchain_hash, onchain_indicator = contract.functions.reports(registry_id).call()
+    authentic = reporter.lower() == _trusted_reporter(w3)
+    if not authentic:
+        result["detail"] = "The on-chain record was not written by this service, so it cannot vouch for this report."
     return {
         **result, "anchored": True,
-        "integrity_ok": bool(contract.functions.verify(registry_id, _bytes32(recomputed)).call()),
+        "integrity_ok": authentic and bool(contract.functions.verify(registry_id, _bytes32(recomputed)).call()),
         "onchain_hash": _hex(onchain_hash), "indicator_hash": _hex(onchain_indicator),
         "registry_id": registry_id, "reporter": reporter,
         "onchain_timestamp": datetime.fromtimestamp(timestamp, timezone.utc).isoformat(),
@@ -181,14 +214,16 @@ def verify(report: Report) -> dict:
 
 @_translating_errors
 def lookup(domain: str) -> dict:
-    """Every on-chain report for a domain, found by hash from the registry's indexed event."""
-    _, contract = _connect()
+    """Every on-chain report for a domain written by this service, found by hash from the registry's indexed event."""
+    w3, contract = _connect()
     wanted = indicator_hash(domain)
+    trusted = _trusted_reporter(w3)
     logs = contract.events.ReportSubmitted().get_logs(
         from_block=int(os.getenv("CHAIN_DEPLOY_BLOCK", "0")),
         to_block="latest",
         argument_filters={"indicatorHash": _bytes32(wanted)},
     )
+    logs = [e for e in logs if e["args"]["reporter"].lower() == trusted]
     return {"indicator_hash": wanted, "count": len(logs), "reports": [{
         "registry_id": int(e["args"]["id"]), "report_hash": _hex(e["args"]["reportHash"]),
         "reporter": e["args"]["reporter"], "tx_hash": _hex(e["transactionHash"]),

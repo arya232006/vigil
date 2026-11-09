@@ -21,6 +21,7 @@ ALLOWED_PORTS = {80, 443, 8080, 8443}
 MAX_HOPS = 8
 MAX_BYTES = 1_500_000
 TIMEOUT = httpx.Timeout(8.0, connect=5.0)
+MAX_TOTAL_SECONDS = 20.0              # whole fetch; the read timeout above only limits the gap between packets
 USER_AGENT = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) "
               "Chrome/130.0 Safari/537.36 Vigil/1.0")
 
@@ -59,7 +60,10 @@ def normalize_url(raw: str) -> str:
     s = s.replace("hxxp", "http").replace("[.]", ".").replace("(.)", ".")   # defanged IOCs
     if "://" not in s:
         s = "http://" + s
-    sp = urlsplit(s)
+    try:
+        sp = urlsplit(s)
+    except ValueError as e:
+        raise BlockedTarget("invalid URL") from e
     if sp.scheme.lower() not in ("http", "https"):
         raise BlockedTarget(f"scheme '{sp.scheme}' not allowed")
     host = (sp.hostname or "").rstrip(".")
@@ -95,7 +99,7 @@ def resolve_public(host: str, port: int) -> list[str]:
     ips = sorted({i[4][0] for i in infos})
     bad = [ip for ip in ips if not is_public_ip(ip)]
     if bad:
-        raise BlockedTarget(f"resolves to non-public address {bad[0]} (SSRF protection)")
+        raise BlockedTarget("resolves to a private or internal address (SSRF protection)")
     return ips
 
 
@@ -132,12 +136,15 @@ def safe_request(method: str, raw_url: str, content: bytes | None = None, header
     with httpx.Client(verify=False, follow_redirects=False, timeout=timeout) as c:
         req = c.build_request(method, pinned, headers=h, content=content, extensions={"sni_hostname": sp.hostname})
         resp = c.send(req, stream=True)
+        deadline = time.monotonic() + MAX_TOTAL_SECONDS
         try:
             body = bytearray()
             for chunk in resp.iter_bytes():
                 body.extend(chunk)
                 if len(body) > max_bytes:
                     raise BlockedTarget("response too large")
+                if time.monotonic() > deadline:
+                    raise BlockedTarget("response too slow")
             return resp.status_code, bytes(body)
         finally:
             resp.close()
@@ -150,6 +157,9 @@ def safe_fetch(raw_url: str) -> FetchResult:
     # verify=False: content fetch only. Certificate trust is analysed separately in tls.py.
     with httpx.Client(verify=False, follow_redirects=False, timeout=TIMEOUT) as client:
         for _ in range(MAX_HOPS + 1):
+            if time.monotonic() - t0 > MAX_TOTAL_SECONDS:
+                return FetchResult(hops, url, None, {}, b"", "", False, "fetch time limit reached",
+                                   int((time.monotonic() - t0) * 1000))
             sp = urlsplit(url)
             port = sp.port or (443 if sp.scheme == "https" else 80)
             if port not in ALLOWED_PORTS:
@@ -173,7 +183,7 @@ def safe_fetch(raw_url: str) -> FetchResult:
             try:
                 for chunk in resp.iter_bytes():
                     body.extend(chunk)
-                    if len(body) > MAX_BYTES:
+                    if len(body) > MAX_BYTES or time.monotonic() - t0 > MAX_TOTAL_SECONDS:
                         truncated = True
                         break
             except httpx.HTTPError as e:

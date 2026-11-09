@@ -2,7 +2,6 @@
 mixed content, and static HTML phishing indicators. Nothing is executed; no forms are submitted."""
 from __future__ import annotations
 
-import gzip
 import re
 import zlib
 from html.parser import HTMLParser
@@ -97,16 +96,18 @@ class _Parser(HTMLParser):
             self.inline_js.append(data[:20000])
 
 
+MAX_DECODED_BYTES = 3_000_000           # a compressed page can expand about 1000x
+
+
 def decode_body(res: FetchResult) -> str:
     body = res.body
     enc = res.headers.get("content-encoding", "")
-    try:
-        if "gzip" in enc:
-            body = gzip.decompress(body)
-        elif "deflate" in enc:
-            body = zlib.decompress(body)
-    except (OSError, zlib.error, EOFError):
-        pass
+    wbits = zlib.MAX_WBITS | 16 if "gzip" in enc else zlib.MAX_WBITS if "deflate" in enc else None
+    if wbits is not None:
+        try:
+            body = zlib.decompressobj(wbits).decompress(body, MAX_DECODED_BYTES)
+        except zlib.error:              # the HTTP client has usually decoded it already
+            pass
     m = re.search(r"charset=([\w-]+)", res.content_type or "")
     try:
         return body.decode(m.group(1) if m else "utf-8", errors="replace")

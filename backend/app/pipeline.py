@@ -160,7 +160,10 @@ def analyze_url(raw: str, input_type: str = "url", depth: int = 0, owner_id: str
     host = sp.hostname or ""
     reg = reg_domain(host)
     rank = threatintel.tranco_rank(reg)
-    raw_netloc = urlsplit(raw.strip() if "://" in raw else "http://" + raw.strip()).netloc
+    try:
+        raw_netloc = urlsplit(raw.strip() if "://" in raw else "http://" + raw.strip()).netloc
+    except ValueError:                                # defanged input such as hxxp://evil[.]example
+        raw_netloc = ""
     if "@" in raw_netloc:
         shown = raw_netloc.rsplit("@", 1)[0]
         findings.append(Finding(

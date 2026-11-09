@@ -77,7 +77,7 @@ export default function ModelsPage() {
       {data && (
         <div className="space-y-5">
           <Card title="why.our.own">
-            <h2 className="display text-[clamp(1.9rem,3.6vw,3rem)]">The AI explains. The evidence decides.</h2>
+            <h2 className="display text-[clamp(1.9rem,3.6vw,3rem)]">The AI is a witness. The rules are the judge.</h2>
             <p className="mt-4 max-w-3xl text-lg leading-snug">
               Ask a chatbot whether a message is a scam and the answer can change with the wording. A scam can even tell
               the model to call it safe. So Vigil splits the job: checks and rules set the risk level, and our models

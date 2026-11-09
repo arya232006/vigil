@@ -11,4 +11,4 @@ ENV DB_PATH=/data/reports.db S2_BASE_URL=http://host.docker.internal:8090/v1 POR
 RUN mkdir -p /data && chown appuser /data
 USER appuser
 EXPOSE 8000
-CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT}"]
+CMD ["sh", "-c", "uvicorn app.main:app --host 0.0.0.0 --port ${PORT} --no-server-header"]

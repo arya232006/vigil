@@ -9,7 +9,7 @@ const FAQ = [
   },
   {
     q: "Can a message talk the AI into a better score?",
-    a: "No. The risk engine sets the level from evidence, and the model only explains it. Instructions hidden in a message are flagged as a manipulation tactic.",
+    a: "Not by asking. Known injection phrasing forces High Risk at minimum, whatever the model says. A reworded attempt could still sway the model, but a harmful request the rules find keeps the message at Suspicious or above.",
   },
   {
     q: "Does a valid certificate count in a site's favour?",

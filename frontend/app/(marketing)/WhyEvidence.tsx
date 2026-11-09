@@ -20,7 +20,7 @@ const COLUMNS = [
   },
   {
     label: "So We Separated The Jobs",
-    text: "Passive checks inspect certificates, redirects, domains, threat feeds and email headers. A rule engine sets the risk level from what they find. Our self-hosted, fine-tuned model only explains those findings.",
+    text: "Passive checks inspect certificates, redirects, domains, threat feeds and email headers. A rule engine sets the risk level from what they find. Our self-hosted, fine-tuned model adds its reading of a message and explains the findings.",
   },
 ];
 

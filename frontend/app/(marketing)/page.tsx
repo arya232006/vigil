@@ -129,7 +129,7 @@ export default function LandingPage() {
           <PipelineDesktop />
 
           <h2 className="display mx-auto mt-20 max-w-5xl text-center text-[clamp(2.8rem,8vw,7rem)]">
-            The AI Never Sets The Verdict
+            The AI Is A Witness, Not The Judge
           </h2>
 
           <WhyEvidence />
@@ -228,6 +228,7 @@ export default function LandingPage() {
             {NAV.map(({ href, label }) => (
               <Link key={href} href={href} className="hover:underline">{label}</Link>
             ))}
+            <Link href="/brand" className="hover:underline">Brand</Link>
           </span>
           <span>Passive inspection only</span>
         </div>

@@ -89,7 +89,7 @@ export function CopyButton({ value, label = "Copy" }: { value: string; label?: s
   return (
     <button
       type="button"
-      className="cursor-pointer text-xs text-accent underline"
+      className="-my-1 inline-block cursor-pointer py-1 text-xs text-accent underline"
       onClick={() =>
         navigator.clipboard.writeText(value).then(() => {
           setCopied(true);

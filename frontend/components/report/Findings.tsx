@@ -44,7 +44,7 @@ function FindingCard({ finding, focusNonce }: { finding: Finding; focusNonce: nu
 
       {(evidence.length > 0 || notes.length > 0) && (
         <details open={open} onToggle={(e) => setOpen(e.currentTarget.open)} className="mt-2">
-          <summary className="cursor-pointer text-xs text-accent">Evidence and details</summary>
+          <summary className="-my-1 cursor-pointer py-1 text-xs text-accent">Evidence and details</summary>
           <div className="mt-2 space-y-2">
             {notes.map((note) => (
               <p key={note.label} className="text-sm">
@@ -85,7 +85,7 @@ export function Findings({ findings, focus }: { findings: Finding[]; focus: { id
           <FindingCard key={f.id} finding={f} focusNonce={nonceFor(f)} />
         ))}
         {minor.length > 0 && !showMinor && (
-          <button type="button" className="text-sm text-accent hover:underline" onClick={() => setShowMinorChosen(true)}>
+          <button type="button" className="-my-0.5 py-0.5 text-sm text-accent hover:underline" onClick={() => setShowMinorChosen(true)}>
             Show {minor.length} minor {minor.length === 1 ? "finding" : "findings"}
           </button>
         )}
