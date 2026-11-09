@@ -16,13 +16,18 @@ Paste a suspicious link, domain, email or message. Get an evidence-backed risk r
 ![MLX](https://img.shields.io/badge/MLX-LoRA_fine--tune-f386a1?style=flat-square&labelColor=1e1e1e)
 [![Sepolia](https://img.shields.io/badge/Sepolia-ThreatRegistry-f386a1?style=flat-square&labelColor=1e1e1e)](https://sepolia.etherscan.io/address/0x012175dc68cb5480e37419a2ec9e04ee5Eef216F)
 [![End-to-end cases](https://img.shields.io/badge/end--to--end_cases-14%2F14_passing-44c086?style=flat-square&labelColor=1e1e1e)](docs/TESTING.md)
+[![License: MIT](https://img.shields.io/badge/License-MIT-f386a1?style=flat-square&labelColor=1e1e1e)](LICENSE)
 
 **[How it works](#how-it-works)** ·
+**[What it checks](#what-it-checks)** ·
 **[Screens](#screens)** ·
 **[Our AI](#our-ai)** ·
+**[Limits](#known-limits)** ·
 **[Quick start](#quick-start)** ·
+**[Deploy](#deploying)** ·
 **[Docs](#docs)** ·
-**[References](#references)**
+**[References](#references)** ·
+**[License](#license)**
 
 </div>
 
@@ -66,6 +71,28 @@ The risk engine assigns one of five classes:
 | ![Inconclusive](https://img.shields.io/badge/Inconclusive-5a6069?style=flat-square) | Fewer than half the checks completed and no indicators |
 
 The full pipeline, rules and platform threat model are in [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md).
+
+<br>
+
+`vg.checks`
+
+## What it checks
+
+| Input | Evidence collected |
+|---|---|
+| **Links and domains** | Redirect chain, typosquats and homoglyphs, punycode, brand look-alikes, domain age, DNS, embedded redirect parameters, OpenPhish feed, optional URLhaus and Google Safe Browsing |
+| **Certificates** | Validation, hostname match, chain, OCSP and CRL revocation, Certificate Transparency, legacy TLS, distrusted CAs, weak-key test |
+| **Web pages** | Credential forms, cross-domain form posts, brand and title mismatch, obfuscated scripts, exposed files, security headers, cookies |
+| **Messages** | OTP, payment and KYC requests, urgency, impersonation, remote-access lures, prompt injection, plus links, phone numbers and UPI IDs. Each link gets its own investigation |
+| **Email (`.eml`)** | SPF, DKIM and DMARC with alignment, sender identity, deceptive links, risky attachments, the Received chain, sender-domain DNS |
+| **QR codes** | Decoded in the browser, so the image is never uploaded, then investigated like any other input |
+
+Reports that share a domain, IP, certificate, phone number, UPI ID or near-duplicate wording are linked, which exposes
+campaigns.
+
+**The platform protects itself too.** The fetcher rejects private and cloud-metadata addresses, pins each connection to
+the validated IP, and re-checks every redirect. It never runs page JavaScript or downloads files. Details are in the
+[threat model](docs/ARCHITECTURE.md#4-security--privacy-of-the-platform-itself).
 
 <br>
 
@@ -129,6 +156,20 @@ and chose not to deploy because it missed real scams.
 
 <br>
 
+`vg.limits`
+
+## Known limits
+
+- **Low risk doesn't mean safe.** New or targeted attacks can slip past automated checks.
+- **The link model reads hostnames only.** It can't recognise a compromised legitimate site. Threat intel, page checks
+  and TLS cover part of that gap.
+- **Training data is mostly English**, with some Hinglish. Other languages are less reliable.
+- **An on-chain record proves integrity, not truth.** It shows a report hasn't changed since it was anchored, not that
+  its conclusions are right.
+- **Message checks are weaker without System-2.** Scam recall is 95.5% with it and 49.4% on rules and System-1 alone.
+
+<br>
+
 `vg.quickstart`
 
 ## Quick start
@@ -164,12 +205,17 @@ as not anchored and can be registered again.
 
 <br>
 
-Without it the backend falls back to a local Ollama model, then to templates, and the risk level is unaffected.
+Without it the backend falls back to a local Ollama model, then to template summaries. Link verdicts don't use
+System-2. Message and email verdicts do use its signal, so with no model available they rely on rules and System-1 and
+catch fewer scams. The status bar shows "Rules only" when that happens.
 
 ```bash
 .venv/bin/pip install mlx-lm    # Apple Silicon only
 scripts/serve_s2.sh             # serves on :8090; needs ml/models/qwen3-1.7b-4bit (not in the repo)
 ```
+
+For Linux or cloud hosting, `scripts/export_s2.sh` packages the model for Ollama as `vigil-s2`. Point the backend at it
+with `S2_BASE_URL=http://<host>:11434/v1` and `S2_MODEL=vigil-s2`.
 
 </details>
 
@@ -236,6 +282,71 @@ Click **Verify against chain** after each step.
 
 <br>
 
+`vg.deploy`
+
+## Deploying
+
+By default the API binds to localhost and accepts only local hosts and origins. To serve other machines, set these in
+`.env`:
+
+| Variable | Set it to |
+|---|---|
+| `HOST` | `0.0.0.0` (read by `scripts/run_api.sh`) |
+| `ALLOWED_HOSTS` | The API's own hostname, comma-separated if there are several |
+| `CORS_ORIGINS` | The frontend's exact origin, such as `https://app.example.com` |
+| `DATABASE_URL` | A Postgres connection string. Without it, reports stay in a local SQLite file |
+| `CLERK_PUBLISHABLE_KEY` | The same Clerk instance the frontend uses. The backend needs no Clerk secret |
+| `REPORT_RETENTION_DAYS` | The number of days to keep reports. The default, `0`, keeps them forever |
+
+In `frontend/.env.local`, set `NEXT_PUBLIC_API_URL` and the Clerk keys, then rebuild, because `NEXT_PUBLIC_` values are
+fixed at build time. `NEXT_PUBLIC_TRUSTED_REPORTER` must be the backend signer's public address.
+
+The backend also has a container image, which runs as a non-root user and stores SQLite in `/data`:
+
+```bash
+docker build -t vigil-api backend
+docker run -p 8000:8000 --env-file .env -v vigil-data:/data vigil-api
+```
+
+Run a single API process. Rate limits are held in memory, so several workers would each keep their own count. Behind a
+reverse proxy, set `FORWARDED_ALLOW_IPS` to the proxy's address, or every visitor will share one rate limit.
+
+**What needs an account**
+
+| Action | Guest | Signed in |
+|---|---|---|
+| Run an investigation | Yes | Yes |
+| Open a report | Anyone with the link | Owner only |
+| History and the Dashboard | No | Your own reports |
+| Anchor a report on-chain | No | Yes, up to the hourly cap |
+| Verify a report you can open | Yes | Yes |
+
+<details>
+<summary><b>Other settings</b></summary>
+
+<br>
+
+| Variable | Default | What it does |
+|---|---|---|
+| `RATE_LIMIT_PER_MIN` | `20` | New analyses per minute, per IP |
+| `CHAIN_RATE_LIMIT_PER_MIN` | `120` | Chain status, lookup and verify calls per minute, per IP |
+| `ANCHOR_MAX_PER_HOUR` | `60` | Cap on on-chain transactions per hour |
+| `CHAIN_TRUSTED_REPORTER` | Signer's address | Only needed if the signing key isn't on this server. Records from other addresses are rejected |
+| `JOB_WORKERS` | `4` | Background analysis workers |
+| `CACHE_TTL_URL` / `CACHE_TTL_MESSAGE` | `600` / `3600` | Result cache lifetime, in seconds |
+| `MAX_JSON_BODY_BYTES` / `EMAIL_MAX_BODY_BYTES` | `262144` / `3145728` | Request size limits |
+| `EMAIL_TRUSTED_AUTHSERV_IDS` | Unset | Trust email authentication results only from the named servers |
+| `S2_BASE_URL` / `S2_MODEL` / `S2_TIMEOUT` | `http://127.0.0.1:8090/v1` / `default_model` / `45` | System-2 server |
+| `OLLAMA_URL` / `FALLBACK_MODEL` | `http://127.0.0.1:11434` / `qwen3:4b-instruct-2507-q4_K_M` | Fallback model |
+| `ROUTER_ENABLED` | `1` | Set to `0` to send every message to System-2 |
+| `DB_PATH` / `DB_POOL_MAX` | `backend/data/reports.db` / `8` | SQLite file location and Postgres pool size |
+| `URLHAUS_AUTH_KEY` / `GSB_API_KEY` | Unset | Optional threat intel. When set, submitted URLs are sent to abuse.ch and Google |
+| `VIGIL_VENV` | `~/.venvs/vigil` | Virtualenv used by `run_api.sh`, falling back to `.venv` |
+
+</details>
+
+<br>
+
 `vg.docs`
 
 ## Docs
@@ -247,6 +358,7 @@ Click **Verify against chain** after each step.
 | [MODEL_CARD.md](docs/MODEL_CARD.md) | Training data, evaluation results and limitations for each model |
 | [TESTING.md](docs/TESTING.md) | Test cases with observed results and model evaluation |
 | [DEMO.md](docs/DEMO.md) | A five-minute live demo script |
+| [FRONTEND_GUIDE.md](docs/FRONTEND_GUIDE.md) | Guidance for building UI on the API, such as error handling and showing URLs safely |
 
 Sample reports: [phishing URL](docs/sample_report_phishing_url.json) ·
 [scam message](docs/sample_report_scam_message.json) · [TLS issue](docs/sample_report_tls_issue.json) ·
@@ -258,14 +370,16 @@ Sample reports: [phishing URL](docs/sample_report_phishing_url.json) ·
 backend/app/
   main.py            FastAPI endpoints          pipeline.py   investigation orchestration
   risk.py            deterministic risk engine  store.py      reports, hashing, correlation index
-  checks/            fetcher (SSRF-safe) · domain · tls · page/headers · threatintel · message rules
+  auth.py            Clerk session checks       jobs.py       async jobs and the result cache
+  email_pipeline.py  .eml investigation         schemas.py    request and report models
+  checks/            fetcher (SSRF-safe) · domain · tls · page/headers · threatintel · message rules · email_auth
   chain.py           on-chain anchoring, verification and domain lookup
   ml/                System-1 models · System-2 client · prompts · artifacts/ (models + metrics)
 contracts/           ThreatRegistry.sol · Hardhat tests · deploy script
-frontend/            Next.js UI: investigate · report · history · dashboard · our AI
-ml/                  datasets, teacher, distillation, training & evaluation scripts
-scripts/             train_s2.sh · serve_s2.sh · run_api.sh · tamper_report.py
-tests/run_cases.py   end-to-end test suite
+frontend/            Next.js UI: landing · investigate · report · history · dashboard · our AI · field notes · sign-in
+ml/                  teacher, distillation, training & evaluation scripts
+scripts/             train_s2.sh · serve_s2.sh · export_s2.sh · run_api.sh · tamper_report.py
+tests/               backend tests · run_cases.py (end-to-end suite)
 ```
 
 <br>
@@ -309,7 +423,23 @@ tests/run_cases.py   end-to-end test suite
 
 [Next.js](https://nextjs.org/) · [FastAPI](https://fastapi.tiangolo.com/) · [scikit-learn](https://scikit-learn.org/) ·
 [MLX](https://github.com/ml-explore/mlx) · [mlx-lm](https://github.com/ml-explore/mlx-lm) · [Ollama](https://ollama.com/) ·
-[Hardhat](https://hardhat.org/) · [ethers](https://docs.ethers.org/v6/)
+[Hardhat](https://hardhat.org/) · [ethers](https://docs.ethers.org/v6/) · [Clerk](https://clerk.com/)
+
+**Team**
+
+Built for HackMatrix by Team 0DAY.
+
+<br>
+
+`vg.license`
+
+## License
+
+Vigil's own code is released under the [MIT License](LICENSE).
+
+Third-party material in this repo keeps its own terms. That includes the OpenPhish and Tranco feed files in
+`backend/app/data/feeds/`, the datasets listed under [References](#references), and the Qwen3 base model that the
+adapter in `ml/adapters/` was trained on. Check those terms before reusing them or the models trained from them.
 
 <br>
 
