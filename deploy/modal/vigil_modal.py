@@ -27,7 +27,7 @@ llama_image = (
 )
 
 
-@app.function(image=llama_image, gpu=["L4", "A10G", "T4", "L40S"],   # first one with capacity
+@app.function(image=llama_image, gpu=["L4", "A10G", "T4"],   # first one with capacity; no L40S, which costs 2.4x an L4
               volumes={"/models": model_cache},
               secrets=[modal.Secret.from_name("vigil-hf")], min_containers=GPU_WARM, scaledown_window=600,
               timeout=3600)
@@ -69,14 +69,34 @@ api_image = (
 
 
 @app.function(image=api_image, secrets=[modal.Secret.from_name("vigil-backend")],
-              cpu=2, memory=4096, min_containers=1, max_containers=1, timeout=600)
+              cpu=1, memory=2048, min_containers=1, max_containers=1, timeout=600)
 @modal.concurrent(max_inputs=50)
 @modal.asgi_app()
 def api():
     import sys
+    import time
 
     os.environ.setdefault("S2_BASE_URL", model.get_web_url().rstrip("/") + "/v1")
     sys.path.insert(0, "/root/backend")
     from app.main import app as fastapi_app      # noqa: E402
+    from app.ml import system2                   # noqa: E402
 
+    # Every page load calls /api/health. Probing the model there would start a GPU (or keep one from scaling down)
+    # whenever anyone browses the site, so ask Modal whether a model container is running instead. The model is
+    # always reachable: a cold one starts on the next analysis.
+    cache = {"at": 0.0, "runners": None}
+
+    def model_status() -> dict:
+        if time.monotonic() - cache["at"] > 15:
+            try:
+                cache["runners"] = model.get_current_stats().num_total_runners
+            except Exception:
+                cache["runners"] = None
+            cache["at"] = time.monotonic()
+        warm = bool(cache["runners"])
+        return {"student_url": system2.S2_URL, "student_model": system2.S2_NAME,
+                "fallback_model": system2.FALLBACK_MODEL, "student_up": True, "fallback_up": False,
+                "student_state": "warm" if warm else "cold: starts on the next analysis (about 1-2 min)"}
+
+    system2.status = model_status
     return fastapi_app
