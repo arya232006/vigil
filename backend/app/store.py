@@ -11,6 +11,7 @@ import json
 import os
 import sqlite3
 import threading
+import uuid
 from pathlib import Path
 
 from .schemas import Report
@@ -96,6 +97,20 @@ for _statement in (
         anchored_at TEXT NOT NULL,
         PRIMARY KEY (report_id, chain_id, contract_address)
     )""",
+    """CREATE TABLE IF NOT EXISTS users (
+        id TEXT PRIMARY KEY,
+        email TEXT NOT NULL UNIQUE,
+        password_hash TEXT NOT NULL,
+        created_at BIGINT NOT NULL,
+        google_sub TEXT UNIQUE
+    )""",
+    """CREATE TABLE IF NOT EXISTS sessions (
+        token_hash TEXT PRIMARY KEY,
+        user_id TEXT NOT NULL,
+        created_at BIGINT NOT NULL,
+        expires_at BIGINT NOT NULL
+    )""",
+    "CREATE INDEX IF NOT EXISTS idx_sessions_expiry ON sessions(expires_at)",
 ):
     _db.query(_statement)
 if isinstance(_db, _SqliteDb) and "owner_id" not in [r[1] for r in _db.query("PRAGMA table_info(reports)")]:
@@ -142,6 +157,64 @@ def save(report: Report, indicators: list[tuple[str, str]], owner_id: str | None
            report.model_dump_json(), owner_id)]),
         ("INSERT INTO indicators VALUES (?,?,?)", [(report.report_id, k, v) for k, v in set(indicators)]),
     )
+
+
+def create_user(email: str, password_hash: str, created_at: int) -> str | None:
+    """The new user's id, or None if the email is taken. The database decides, so simultaneous sign-ups can't both win."""
+    rows = _db.query("INSERT INTO users (id, email, password_hash, created_at) VALUES (?,?,?,?) "
+                     "ON CONFLICT (email) DO NOTHING RETURNING id",
+                     (f"usr_{uuid.uuid4().hex}", email, password_hash, created_at))
+    return rows[0][0] if rows else None
+
+
+def find_user(email: str) -> tuple[str, str] | None:
+    rows = _db.query("SELECT id, password_hash FROM users WHERE email=?", (email,))
+    return (rows[0][0], rows[0][1]) if rows else None
+
+
+def google_user(sub: str, email: str, created_at: int) -> str | None:
+    """The account for a verified Google identity, creating or linking one. None if the email belongs to another Google
+    identity. Vigil doesn't verify emails at sign-up, so anyone could have registered this address first: linking removes
+    the password and every session, which locks out whoever did."""
+    for _ in range(2):                                      # a second pass settles two simultaneous first sign-ins
+        rows = _db.query("SELECT id FROM users WHERE google_sub=?", (sub,))
+        if rows:
+            return rows[0][0]
+        rows = _db.query("SELECT id, google_sub FROM users WHERE email=?", (email,))
+        if rows:
+            if rows[0][1] is not None:
+                return None
+            _db.query("UPDATE users SET google_sub=?, password_hash='' WHERE id=?", (sub, rows[0][0]))
+            _db.query("DELETE FROM sessions WHERE user_id=?", (rows[0][0],))
+            return rows[0][0]
+        rows = _db.query("INSERT INTO users (id, email, password_hash, created_at, google_sub) VALUES (?,?,'',?,?) "
+                         "ON CONFLICT DO NOTHING RETURNING id", (f"usr_{uuid.uuid4().hex}", email, created_at, sub))
+        if rows:
+            return rows[0][0]
+    return None
+
+
+def set_password_hash(user_id: str, password_hash: str) -> None:
+    _db.query("UPDATE users SET password_hash=? WHERE id=?", (password_hash, user_id))
+
+
+def create_session(token_hash: str, user_id: str, created_at: int, expires_at: int) -> None:
+    _db.query("INSERT INTO sessions (token_hash, user_id, created_at, expires_at) VALUES (?,?,?,?)",
+              (token_hash, user_id, created_at, expires_at))
+
+
+def session_user(token_hash: str, now: int) -> tuple[str, str] | None:
+    rows = _db.query("SELECT u.id, u.email FROM sessions s JOIN users u ON u.id = s.user_id "
+                     "WHERE s.token_hash=? AND s.expires_at > ?", (token_hash, now))
+    return (rows[0][0], rows[0][1]) if rows else None
+
+
+def delete_session(token_hash: str) -> None:
+    _db.query("DELETE FROM sessions WHERE token_hash=?", (token_hash,))
+
+
+def purge_sessions(now: int) -> None:
+    _db.query("DELETE FROM sessions WHERE expires_at <= ?", (now,))
 
 
 def get(report_id: str) -> Report | None:

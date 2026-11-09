@@ -1,21 +1,32 @@
 "use client";
 
-import { Show, SignInButton, UserButton } from "@clerk/nextjs";
+import Link from "next/link";
+import { useState } from "react";
+import { signOut } from "@/lib/api";
+import { useSession } from "@/lib/session";
 
-/** "Sign in" for guests, the profile menu for signed-in users. */
+/** "Sign in" for guests; the account's email and "Sign out" for signed-in users. */
 export function AccountControls() {
+  const { ready, account } = useSession();
+  const [busy, setBusy] = useState(false);
+
+  if (!ready) return null;
+  if (!account) return <Link href="/sign-in" className="tile">Sign in</Link>;
+
+  const leave = async () => {
+    setBusy(true);
+    try {
+      await signOut();
+      window.location.assign("/"); // a full load, so nothing from this account stays in memory
+    } catch {
+      setBusy(false);
+    }
+  };
+
   return (
     <>
-      <Show when="signed-out">
-        <SignInButton>
-          <button type="button" className="tile cursor-pointer">Sign in</button>
-        </SignInButton>
-      </Show>
-      <Show when="signed-in">
-        <span className="flex items-center px-1.5">
-          <UserButton />
-        </span>
-      </Show>
+      <span className="tile hidden max-w-56 truncate md:inline-block" title={account.email}>{account.email}</span>
+      <button type="button" className="tile cursor-pointer" onClick={leave} disabled={busy}>Sign out</button>
     </>
   );
 }

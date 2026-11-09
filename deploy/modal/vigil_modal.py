@@ -4,6 +4,8 @@ Deploy:   .venv/bin/modal deploy deploy/modal/vigil_modal.py
 Secrets (create once, values never in code):
   vigil-hf       HF_TOKEN            read access to the private model repo
   vigil-backend  CHAIN_PRIVATE_KEY   the Sepolia wallet that anchors reports (use any placeholder key=value to run without anchoring)
+                 DATABASE_URL        Postgres. Without it, accounts and reports live in /tmp and vanish on restart
+                 GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET   optional, turns on "Continue with Google"
 """
 import os
 from pathlib import Path
@@ -56,12 +58,13 @@ api_image = (
         "OLLAMA_URL": "http://127.0.0.1:9",       # no local fallback model here: template fallback
         "TRUST_PROXY": "1",
         "ALLOWED_HOSTS": "koe-labs--vigil-api.us-east.modal.run",
-        "CORS_ORIGINS": "https://vigil.arddev.in",   # also checked against the Clerk token azp claim
+        "CORS_ORIGINS": "https://vigil.arddev.in",   # also the only site allowed to act on a session
+        "SESSION_COOKIE_SAMESITE": "none",        # the site and this API are on different domains
+        "GOOGLE_REDIRECT_URI": "https://koe-labs--vigil-api.us-east.modal.run/api/auth/google/callback",
         "CHAIN_RPC_URL": "https://ethereum-sepolia-rpc.publicnode.com",
         "CHAIN_CONTRACT_ADDRESS": "0x012175dc68cb5480e37419a2ec9e04ee5Eef216F",
         "CHAIN_DEPLOY_BLOCK": "12095029",
         "CHAIN_TRUSTED_REPORTER": "0xc77944D7e8E9Fb1742ae75b538834E7f08c1Daf1",
-        "CLERK_PUBLISHABLE_KEY": "pk_test_YWJvdmUtY2hhbW9pcy0zMDYyLmNsZXJrLmFjY291bnRzLmRldiQ",
     })
     .add_local_dir(str(ROOT / "backend"), "/root/backend",
                    ignore=["**/__pycache__/**", "data/**", ".pytest_cache/**", "Dockerfile"])
