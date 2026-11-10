@@ -37,8 +37,24 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
   throw new ApiError(friendly ?? validation ?? detail ?? `Request failed (HTTP ${res.status})`, res.status);
 }
 
-export async function getJson<T>(path: string): Promise<T> {
-  return (await request(path)).json();
+export async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
+  return (await request(path, init)).json();
+}
+
+// The job keeps running on the server, so a status check lost on a flaky network (or one that hangs) is retried
+// instead of failing the whole analysis. JOB_TIMEOUT_MS still bounds the total wait.
+const POLL_REQUEST_TIMEOUT_MS = 10_000;
+const POLL_RETRIES = 3;
+
+async function pollJob(jobId: string): Promise<JobInfo> {
+  for (let attempt = 0; ; attempt++) {
+    try {
+      return await getJson<JobInfo>(`/api/jobs/${jobId}`, { signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS) });
+    } catch (e) {
+      if (!(e instanceof ApiError) || e.status !== 0 || attempt >= POLL_RETRIES) throw e;
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    }
+  }
 }
 
 function postJson<T>(path: string, body?: unknown): Promise<T> {
@@ -62,7 +78,7 @@ export async function investigate(
       throw new ApiError("The analysis timed out. Try again.", 0);
     }
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-    job = await getJson<JobInfo>(`/api/jobs/${job.job_id}`);
+    job = await pollJob(job.job_id);
   }
   if (job.status === "failed") throw new ApiError(job.error ?? "The analysis failed. Try again.", 0);
   return job;
