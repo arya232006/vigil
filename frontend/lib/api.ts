@@ -68,10 +68,11 @@ export async function investigate(
   return job;
 }
 
-export const signIn = (email: string, password: string) =>
-  postJson<{ user: Account }>("/api/auth/login", { email, password });
-export const signUp = (email: string, password: string) =>
-  postJson<{ user: Account }>("/api/auth/signup", { email, password });
+export const signIn = (identifier: string, password: string) =>
+  postJson<{ user: Account }>("/api/auth/login", { identifier, password });
+export const signUp = (name: { email: string } | { username: string }, password: string) =>
+  postJson<{ user: Account }>("/api/auth/signup", { ...name, password });
+export const generateUsername = () => getJson<{ username: string }>("/api/auth/username");
 export const signOut = () => postJson<unknown>("/api/auth/logout");
 
 export const analyzeEmail = (raw: string) => postJson<Report>("/api/analyze/email", { raw, live_dns: true });

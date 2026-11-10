@@ -91,14 +91,14 @@ export default function LandingPage() {
           <div className="hero-clouds" />
         </div>
 
-        <nav className="relative flex flex-wrap items-start justify-between gap-1.5">
-          <Link href="/" className="tile"><Logo /></Link>
+        <nav className="relative flex flex-wrap items-start justify-between gap-1.5 lg:grid lg:grid-cols-[1fr_auto_1fr]">
+          <Link href="/" className="tile lg:justify-self-start"><Logo /></Link>
           <div className="order-last flex w-full flex-wrap gap-1.5 sm:order-none sm:w-auto">
             {NAV.slice(1).map(({ href, label }) => (
               <Link key={href} href={href} className="tile">{label}</Link>
             ))}
           </div>
-          <div className="flex items-center gap-1.5">
+          <div className="flex items-center gap-1.5 lg:justify-self-end">
             <AccountControls />
             <Link href="/investigate" className="tile tile-dark">Investigate</Link>
           </div>

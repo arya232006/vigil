@@ -35,13 +35,26 @@ MIN_PASSWORD = 10
 MAX_PASSWORD = 128                  # bounds the work an attacker can make Argon2 do per request
 SESSION_SECONDS = int(float(os.getenv("SESSION_TTL_DAYS", "14")) * 86_400)
 EMAIL = re.compile(r"[^@\s]+@[^@\s.]+(\.[^@\s.]+)+")
+USERNAME = re.compile(r"[a-z0-9][a-z0-9_-]{1,28}[a-z0-9]")
+ADJECTIVES = ("amber", "brave", "calm", "clever", "cobalt", "crimson", "daring", "eager", "gentle", "golden", "hidden",
+              "jade", "keen", "lively", "lucky", "mellow", "misty", "nimble", "quick", "quiet", "rapid", "silent",
+              "silver", "sly", "solar", "steady", "stormy", "swift", "velvet", "vivid", "wandering", "witty")
+NOUNS = ("badger", "cedar", "comet", "condor", "falcon", "fox", "harbor", "heron", "lantern", "lynx", "maple", "meadow",
+         "nebula", "orca", "otter", "owl", "panther", "pine", "quartz", "raven", "reef", "ridge", "river", "sparrow",
+         "summit", "tiger", "voyager", "walrus", "willow", "wolf", "wren", "zephyr")
 DEFAULT_ORIGINS = "http://localhost:3000,http://127.0.0.1:3000,http://localhost:3100,http://127.0.0.1:3100"
 
 _hasher = PasswordHasher()
 
 
-class Credentials(BaseModel):
-    email: str
+class SignUp(BaseModel):
+    email: str | None = None
+    username: str | None = None
+    password: str
+
+
+class Login(BaseModel):
+    identifier: str
     password: str
 
 
@@ -90,28 +103,42 @@ def _normalise_email(email: str) -> str:
     return email.strip().lower()
 
 
+def generate_username() -> str:
+    """A readable random name that's free right now. Sign-up still has the final say if someone takes it first."""
+    for _ in range(8):
+        name = f"{secrets.choice(ADJECTIVES)}-{secrets.choice(NOUNS)}-{secrets.randbelow(9000) + 1000}"
+        if not store.username_taken(name):
+            return name
+    raise HTTPException(503, "Couldn't find a free username. Try again.")
+
+
 @functools.lru_cache(maxsize=1)
 def _dummy_hash() -> str:
     return _hasher.hash(secrets.token_urlsafe(16))
 
 
-def sign_up(credentials: Credentials, response: Response) -> dict:
-    email = _normalise_email(credentials.email)
-    if len(email) > 254 or not EMAIL.fullmatch(email):
+def sign_up(details: SignUp, response: Response) -> dict:
+    email = _normalise_email(details.email or "") or None
+    username = (details.username or "").strip().lower() or None
+    if bool(email) == bool(username):
+        raise HTTPException(400, "Choose either an email or a username")
+    if email and (len(email) > 254 or not EMAIL.fullmatch(email)):
         raise HTTPException(400, "Enter a valid email address")
-    if not MIN_PASSWORD <= len(credentials.password) <= MAX_PASSWORD:
+    if username and not USERNAME.fullmatch(username):
+        raise HTTPException(400, "Use a username of 3 to 30 letters, numbers, hyphens or underscores, starting and ending "
+                                 "with a letter or number")
+    if not MIN_PASSWORD <= len(details.password) <= MAX_PASSWORD:
         raise HTTPException(400, f"Use a password of {MIN_PASSWORD} to {MAX_PASSWORD} characters")
-    user_id = store.create_user(email, _hasher.hash(credentials.password), int(time.time()))
+    user_id = store.create_user(email, _hasher.hash(details.password), int(time.time()), username)
     if user_id is None:
-        raise HTTPException(409, "An account with this email already exists")
+        raise HTTPException(409, f"An account with this {'email' if email else 'username'} already exists")
     _start_session(user_id, response)
-    return {"user": {"id": user_id, "email": email}}
+    return {"user": {"id": user_id, "email": email, "username": username}}
 
 
-def sign_in(credentials: Credentials, response: Response) -> dict:
-    """Unknown emails do the same hashing work as wrong passwords, so timing doesn't reveal which emails have accounts."""
-    email = _normalise_email(credentials.email)
-    user = store.find_user(email)
+def sign_in(credentials: Login, response: Response) -> dict:
+    """Unknown accounts do the same hashing work as wrong passwords, so timing doesn't reveal which ones exist."""
+    user = store.find_user(credentials.identifier.strip().lower())
     if user and not user[1]:                # a Google-only account has no password to match
         user = None
     stored = user[1] if user else _dummy_hash()
@@ -120,11 +147,11 @@ def sign_in(credentials: Credentials, response: Response) -> dict:
     except (VerificationError, InvalidHashError):
         user = None
     if user is None or len(credentials.password) > MAX_PASSWORD:
-        raise HTTPException(401, "Incorrect email or password")
+        raise HTTPException(401, "Incorrect email, username or password")
     if _hasher.check_needs_rehash(stored):
         store.set_password_hash(user[0], _hasher.hash(credentials.password))
     _start_session(user[0], response)
-    return {"user": {"id": user[0], "email": email}}
+    return {"user": {"id": user[0], "email": user[2], "username": user[3]}}
 
 
 def sign_out(request: Request, response: Response) -> dict:
@@ -144,7 +171,7 @@ def account(request: Request, response: Response) -> dict | None:
     if found is None:
         _clear_cookie(response)
         return None
-    return {"id": found[0], "email": found[1]}
+    return {"id": found[0], "email": found[1], "username": found[2]}
 
 
 GOOGLE_AUTH = "https://accounts.google.com/o/oauth2/v2/auth"

@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState, type ReactNode } from "react";
 import { getJson } from "@/lib/api";
-import { SessionContext, type Account } from "@/lib/session";
+import { SessionContext, rememberSignedIn, type Account } from "@/lib/session";
 
 /** Asks the API who is signed in. The session cookie is HttpOnly, so scripts on the page can't read it. */
 export function SessionProvider({ children }: { children: ReactNode }) {
@@ -24,6 +24,10 @@ export function SessionProvider({ children }: { children: ReactNode }) {
       current = false;
     };
   }, []);
+
+  useEffect(() => {
+    if (ready) rememberSignedIn(account !== null);
+  }, [ready, account]);
 
   const session = useMemo(() => ({ ready, account, google, setAccount }), [ready, account, google]);
   return <SessionContext.Provider value={session}>{children}</SessionContext.Provider>;

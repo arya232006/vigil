@@ -105,19 +105,25 @@ def _rate_limit(ip: str, bucket: str = "analysis", limit: int | None = None):
 
 
 @app.post("/api/auth/signup", status_code=201)
-def signup(credentials: auth.Credentials, request: Request, response: Response):
+def signup(details: auth.SignUp, request: Request, response: Response):
     auth.require_allowed_origin(request)
     _rate_limit(_client_ip(request), "auth", AUTH_RATE)
-    return auth.sign_up(credentials, response)
+    return auth.sign_up(details, response)
 
 
 @app.post("/api/auth/login")
-def login(credentials: auth.Credentials, request: Request, response: Response):
-    """Limited per IP and per email, so spreading guesses across addresses doesn't help against one account."""
+def login(credentials: auth.Login, request: Request, response: Response):
+    """Limited per IP and per account name, so spreading guesses across addresses doesn't help against one account."""
     auth.require_allowed_origin(request)
     _rate_limit(_client_ip(request), "auth", AUTH_RATE)
-    _rate_limit(credentials.email.strip().lower()[:254], "auth-email", AUTH_RATE)
+    _rate_limit(credentials.identifier.strip().lower()[:254], "auth-email", AUTH_RATE)
     return auth.sign_in(credentials, response)
+
+
+@app.get("/api/auth/username")
+def suggest_username(request: Request):
+    _rate_limit(_client_ip(request), "username", AUTH_RATE * 3)
+    return {"username": auth.generate_username()}
 
 
 @app.post("/api/auth/logout")
