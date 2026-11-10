@@ -6,6 +6,7 @@ Secrets (create once, values never in code):
   vigil-backend  CHAIN_PRIVATE_KEY   the Sepolia wallet that anchors reports (use any placeholder key=value to run without anchoring)
                  DATABASE_URL        Postgres. Without it, accounts and reports live in /tmp and vanish on restart
                  GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET   optional, turns on "Continue with Google"
+                 REDIS_URL           optional; required before raising max_containers above 1
 """
 import os
 from pathlib import Path
@@ -81,8 +82,8 @@ def api():
 
     os.environ.setdefault("S2_BASE_URL", model.get_web_url().rstrip("/") + "/v1")
     sys.path.insert(0, "/root/backend")
-    from app.main import app as fastapi_app      # noqa: E402
-    from app.ml import system2                   # noqa: E402
+    from app.main import app as fastapi_app
+    from app.ml import system2
 
     # Every page load calls /api/health. Probing the model there would start a GPU (or keep one from scaling down)
     # whenever anyone browses the site, so ask Modal whether a model container is running instead. The model is

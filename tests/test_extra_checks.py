@@ -49,7 +49,7 @@ def test_normal_page_has_no_exposure_findings():
 
 def test_retention_purges_old_reports(monkeypatch):
     old = Report(report_id="oldreport001", input_type="message", input="old text",
-                 analyzed_at=(dt.datetime.now(dt.timezone.utc) - dt.timedelta(days=10)).isoformat(timespec="seconds"),
+                 analyzed_at=(dt.datetime.now(dt.UTC) - dt.timedelta(days=10)).isoformat(timespec="seconds"),
                  risk_level=RiskLevel.LOW, risk_score=0, confidence=1.0,
                  explanation=Explanation(summary="x", generated_by="template"))
     monkeypatch.setattr(store, "RETENTION_DAYS", 0)

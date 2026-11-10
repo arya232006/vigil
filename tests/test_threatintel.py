@@ -1,7 +1,6 @@
 """External threat-intel sources count as consulted only when they actually answer (no network needed)."""
 import httpx
 import pytest
-
 from app.checks import threatintel
 
 URL, HOST = "https://bad.example/login", "bad.example"

@@ -220,7 +220,7 @@ def analyze_message(text: str) -> tuple[dict | None, str, int]:
     out = _json(raw) if raw else None
     probs = _LAST_PROBS.get("v") if out else None
     if not out or out.get("verdict") not in VERDICTS:
-        from ..ml.teacher_schema import LABEL_SCHEMA, LABEL_SYSTEM  # lazy: only for the fallback path
+        from ..ml.teacher_schema import LABEL_SYSTEM  # lazy: only for the fallback path
         # generic JSON mode: schema-constrained decoding suppresses the nested evidence quotes
         skeleton = ('\nReturn exactly this JSON shape: {"verdict": "scam|suspicious|legitimate", "scam_type": "...", '
                     '"impersonated_entity": "...", "tactics": ["..."], "evidence": [{"tactic": "...", "quote": "..."}], '

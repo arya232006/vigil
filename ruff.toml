@@ -1,0 +1,14 @@
+# Lint for the Python code. Run: ruff check .
+target-version = "py312"
+line-length = 120
+extend-exclude = ["frontend", "contracts", "ml/data", "ml/models"]
+
+[lint]
+select = ["E9", "F", "B", "I", "UP", "PLE"]
+ignore = [
+  "UP042",   # str-Enum subclasses are part of the report schema; StrEnum would change nothing but the diff
+]
+
+[lint.per-file-ignores]
+"tests/*" = ["E402"]   # tests set environment variables before importing the app
+"ml/*" = ["B905", "B007"]   # offline research scripts: parallel arrays are paired by construction

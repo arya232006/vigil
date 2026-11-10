@@ -169,6 +169,7 @@ and chose not to deploy because it missed real scams.
 - **Accounts created with only a username can't be recovered** if the password is lost.
 - **Password accounts have no reset or email verification yet**, because Vigil doesn't send email. Signing in with
   Google for the same address links the accounts and removes the password.
+- **One API instance unless Redis is configured.** Without `REDIS_URL`, rate limits and jobs are per process.
 - **Message checks are weaker without System-2.** Scam recall is 95.5% with it and 49.4% on rules and System-1 alone.
 
 <br>
@@ -314,8 +315,13 @@ docker build -t vigil-api backend
 docker run -p 8000:8000 --env-file .env -v vigil-data:/data vigil-api
 ```
 
-Run a single API process. Rate limits are held in memory, so several workers would each keep their own count. Behind a
-reverse proxy, set `FORWARDED_ALLOW_IPS` to the proxy's address, or every visitor will share one rate limit.
+**Running more than one API instance needs Redis.** Without `REDIS_URL`, rate limits, jobs and the result cache live in
+each process's memory, which is only correct for a single instance: with several, each keeps its own rate-limit count,
+and a job can only be polled on the instance that created it. Set `REDIS_URL` to share all three. Each analysis still
+runs on the instance that accepted it, so if that instance stops mid-analysis, the job stays `running` until it
+expires and the input can be resubmitted after `JOB_INFLIGHT_TTL_SECONDS`. `GET /api/health` reports which mode is
+active as `shared_state`. Behind a reverse proxy, set `FORWARDED_ALLOW_IPS` to the proxy's address, or every visitor
+will share one rate limit.
 
 **What needs an account**
 
@@ -340,6 +346,8 @@ reverse proxy, set `FORWARDED_ALLOW_IPS` to the proxy's address, or every visito
 | `AUTH_RATE_LIMIT_PER_MIN` | `10` | Sign-up and sign-in attempts per minute, per IP and per email |
 | `SESSION_TTL_DAYS` | `14` | How long a sign-in lasts |
 | `CHAIN_TRUSTED_REPORTER` | Signer's address | Only needed if the signing key isn't on this server. Records from other addresses are rejected |
+| `REDIS_URL` | Unset | Shares rate limits, jobs and the result cache across API instances. Required for more than one |
+| `JOB_TTL_SECONDS` / `JOB_INFLIGHT_TTL_SECONDS` | `3600` / `900` | With Redis: how long a job can be polled, and how long a stalled analysis blocks resubmitting the same input |
 | `JOB_WORKERS` | `4` | Background analysis workers |
 | `CACHE_TTL_URL` / `CACHE_TTL_MESSAGE` | `600` / `3600` | Result cache lifetime, in seconds |
 | `MAX_JSON_BODY_BYTES` / `EMAIL_MAX_BODY_BYTES` | `262144` / `3145728` | Request size limits |

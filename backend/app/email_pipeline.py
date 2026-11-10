@@ -12,8 +12,19 @@ from . import pipeline
 from .checks import email_auth as ea
 from .checks import threatintel
 from .checks.message import HARMFUL, detect_tactics
-from .schemas import (CheckStatus, EmailAttachment, EmailAuthResult, EmailInfo, Explanation, Finding, Indicators,
-                      LinkMismatch, Report, RiskLevel, Severity)
+from .schemas import (
+    CheckStatus,
+    EmailAttachment,
+    EmailAuthResult,
+    EmailInfo,
+    Explanation,
+    Finding,
+    Indicators,
+    LinkMismatch,
+    Report,
+    RiskLevel,
+    Severity,
+)
 
 MAX_BODY_CHARS = 12_000
 LEVEL_ORDER = {RiskLevel.LOW: 0, RiskLevel.SUSPICIOUS: 1, RiskLevel.HIGH: 2, RiskLevel.CONFIRMED: 3}

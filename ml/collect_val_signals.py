@@ -1,8 +1,11 @@
 """Collect deployed-pipeline signals (rules, System-1, validated System-2) on the VALIDATION messages,
 for tuning the risk engine without touching the test set. Output: data/s2/val_signals.jsonl"""
-import json, re, sys
+import json
+import re
+import sys
 from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
+
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT.parent / "backend"))
 from app.checks.message import detect_tactics
@@ -23,4 +26,5 @@ with ThreadPoolExecutor(4) as ex:
     out = list(ex.map(one, rows))
 (ROOT / "data/s2/val_signals.jsonl").write_text("".join(json.dumps(o, ensure_ascii=False) + "\n" for o in out))
 from collections import Counter
+
 print(len(out), "validation messages;", Counter(o["gt"] for o in out), Counter(o["s2_model"][:3] for o in out))

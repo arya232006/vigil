@@ -25,7 +25,7 @@ from ..schemas import Finding, Severity, TLSInfo
 from .fetcher import BlockedTarget, safe_request
 
 DISTRUSTED = json.loads((Path(__file__).resolve().parent.parent / "data" / "distrusted_cas.json").read_text())["entries"]
-NOW = lambda: dt.datetime.now(dt.timezone.utc)  # noqa: E731
+NOW = lambda: dt.datetime.now(dt.UTC)
 
 # ---- Trivially-weak EC key detection ---------------------------------------------------------------
 # In the Oct 2026 eMudhra incident one intermediate's private key was the integer 4. If a private scalar is
@@ -117,7 +117,7 @@ def _connect(host: str, ip: str, port: int, verify: bool, legacy: bool = False):
     for attempt in range(2):
         try:
             return _connect_once(host, ip, port, verify, legacy)
-        except (ConnectionResetError, TimeoutError, socket.timeout) :
+        except (ConnectionResetError, TimeoutError) :
             if attempt == 1 or legacy:
                 raise
             import time as _t
@@ -302,7 +302,7 @@ def analyze(host: str, ip: str, registered_domain: str | None, port: int = 443,
         add("Inadequate key size", Severity.HIGH, f"{key_type} key of {key_bits} bits is below current minimums.",
             {**ev, "key": f"{key_type} {key_bits}"})
     lifetime = (na - nb).days
-    if lifetime > 398 and nb > dt.datetime(2020, 9, 1, tzinfo=dt.timezone.utc) and info.valid:
+    if lifetime > 398 and nb > dt.datetime(2020, 9, 1, tzinfo=dt.UTC) and info.valid:
         add("Unusually long certificate lifetime", Severity.LOW,
             f"Lifetime is {lifetime} days; publicly trusted certificates are limited to 398 days.",
             {**ev, "lifetime_days": lifetime})

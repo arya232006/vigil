@@ -93,7 +93,7 @@ input ──► type detection ──► URL/domain ─┬─► SSRF-safe fetch
 | Prompt injection | Inputs wrapped as untrusted data; injection phrases detected and flagged as a scam tactic; AI cannot set the risk class; evidence quotes and cited finding ids are verified |
 | Privacy | Never asks for passwords/OTPs/keys; only hashes go on-chain; optional external TI APIs are off by default |
 | Accounts | Argon2id password hashes, or Google sign-in using PKCE and a state check. Sessions are random tokens in HttpOnly cookies, stored only as SHA-256 and revocable. Origin checks on state-changing requests stop CSRF, and sign-in is rate-limited per IP and per email |
-| Abuse | 20 analyses/min/IP rate limit |
+| Abuse | 20 analyses/min/IP rate limit, shared across instances through Redis when `REDIS_URL` is set, otherwise per process |
 
 ## 5. Deployment
 

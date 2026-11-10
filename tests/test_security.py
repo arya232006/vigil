@@ -6,8 +6,8 @@ from pathlib import Path
 import pytest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
-from app.checks.fetcher import BlockedTarget, is_public_ip, normalize_url, safe_fetch  # noqa: E402
-from app.checks.message import detect_tactics, extract_indicators  # noqa: E402
+from app.checks.fetcher import BlockedTarget, is_public_ip, normalize_url, safe_fetch
+from app.checks.message import detect_tactics, extract_indicators
 
 SSRF_TARGETS = [
     "http://localhost/", "http://127.0.0.1/", "http://[::1]/", "http://[::ffff:127.0.0.1]/",
@@ -52,7 +52,7 @@ def test_ioc_extraction():
 
 
 # AI-claim validation: System-2 harmful-tactic claims must be backed by a consistent, non-negated quote.
-from app.ml.system2 import _consistent  # noqa: E402
+from app.ml.system2 import _consistent
 
 
 @pytest.mark.parametrize("tactic,quote,ok", [

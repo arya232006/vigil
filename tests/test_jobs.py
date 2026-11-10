@@ -17,9 +17,8 @@ os.environ["S2_BASE_URL"] = "http://127.0.0.1:9/v1"
 os.environ["OLLAMA_URL"] = "http://127.0.0.1:9"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
-from fastapi.testclient import TestClient  # noqa: E402
-
-from app import jobs, main, pipeline, schemas, store  # noqa: E402
+from app import jobs, main, pipeline, schemas, store
+from fastapi.testclient import TestClient
 
 # conftest.py sets an isolated temp DB before any app import; never touch the production database.
 assert "vigil-tests-" in str(store.DB_PATH) or Path(store.DB_PATH) == _TMP / "reports.db", \

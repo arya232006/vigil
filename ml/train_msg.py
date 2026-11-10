@@ -16,8 +16,13 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.metrics import (average_precision_score, brier_score_loss, confusion_matrix,
-                             precision_recall_fscore_support, roc_auc_score)
+from sklearn.metrics import (
+    average_precision_score,
+    brier_score_loss,
+    confusion_matrix,
+    precision_recall_fscore_support,
+    roc_auc_score,
+)
 from sklearn.model_selection import train_test_split
 
 ROOT = Path(__file__).resolve().parent
@@ -39,7 +44,6 @@ def load() -> pd.DataFrame:
     em = em[em["Email Text"].str.len().between(30, 6000)]
     rows += [{"text": t, "y": int("Phishing" in ty), "src": "email", "group": f"em{i}"}
              for i, (t, ty) in enumerate(zip(em["Email Text"], em["Email Type"]))]
-    seed_ids = {s[2]: i for i, s in enumerate(SEEDS)}
     import hashlib
     sid = {hashlib.sha1(s[2].encode()).hexdigest()[:16]: i for s, i in zip(SEEDS, range(len(SEEDS)))}
     for i, (v, ty, t) in enumerate(SEEDS):

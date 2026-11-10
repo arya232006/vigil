@@ -2,7 +2,6 @@
 Explanations are disabled here (template) so the teacher is not needed. Output: data/distill/url_reports.jsonl"""
 from __future__ import annotations
 
-import json
 import random
 import sys
 from concurrent.futures import ThreadPoolExecutor
