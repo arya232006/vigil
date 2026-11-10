@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useCallback, useEffect, useState } from "react";
-import { Button, Card, CopyButton, ErrorNote, Field, Mono } from "@/components/ui";
+import { Button, Card, CopyButton, ErrorNote, Field, Mono, buttonClass } from "@/components/ui";
 import { anchorReport, chainVerify, errorMessage, getCanonical, useApi } from "@/lib/api";
 import { browserVerifyAvailable, verifyInBrowser } from "@/lib/chain";
 import { formatTime, reportDomain, shortHash } from "@/lib/format";
@@ -143,7 +143,7 @@ export function IntegrityPanel({ report }: { report: Report }) {
               {ready && !account && (
                 <Link
                   href={`/sign-in?next=${encodeURIComponent(`/reports/${report.report_id}`)}`}
-                  className="terminal border border-(--l-ink) bg-(--l-ink) px-3 py-1 text-xl leading-tight text-(--l-paper) hover:bg-(--l-pink) hover:text-(--l-ink)"
+                  className={buttonClass("primary")}
                 >
                   Sign in to register on-chain
                 </Link>

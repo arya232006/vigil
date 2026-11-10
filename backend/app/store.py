@@ -165,7 +165,7 @@ def purge_expired() -> int:
     if RETENTION_DAYS <= 0:
         return 0
     import datetime as _dt
-    cutoff = (_dt.datetime.now(_dt.timezone.utc) - _dt.timedelta(days=RETENTION_DAYS)).isoformat(timespec="seconds")
+    cutoff = (_dt.datetime.now(_dt.UTC) - _dt.timedelta(days=RETENTION_DAYS)).isoformat(timespec="seconds")
     ids = [(r[0],) for r in _db.query("SELECT report_id FROM reports WHERE analyzed_at < ?", (cutoff,))]
     _db.transaction(("DELETE FROM indicators WHERE report_id=?", ids), ("DELETE FROM reports WHERE report_id=?", ids))
     return len(ids)
@@ -274,7 +274,7 @@ def get_anchor(report_id: str, chain_id: int, contract_address: str) -> dict | N
     rows = _db.query(f"SELECT {','.join(_ANCHOR_COLUMNS)} FROM anchors "
                      "WHERE report_id=? AND chain_id=? AND contract_address=?",
                      (report_id, chain_id, contract_address))
-    return dict(zip(_ANCHOR_COLUMNS, rows[0])) if rows else None
+    return dict(zip(_ANCHOR_COLUMNS, rows[0], strict=True)) if rows else None
 
 
 def list_reports(owner_id: str, limit: int = 50) -> list[dict]:

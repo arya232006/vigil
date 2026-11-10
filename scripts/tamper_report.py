@@ -13,8 +13,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
-from app import store  # noqa: E402
-from app.schemas import Report, RiskLevel  # noqa: E402
+from app import store
+from app.schemas import Report, RiskLevel
 
 
 def _write(report: Report) -> None:

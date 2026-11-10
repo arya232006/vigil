@@ -12,12 +12,11 @@ os.environ["S2_BASE_URL"] = "http://127.0.0.1:9/v1"
 os.environ["OLLAMA_URL"] = "http://127.0.0.1:9"
 sys.path.insert(0, str(Path(__file__).resolve().parents[1] / "backend"))
 
-import pytest  # noqa: E402
-
-from app import email_pipeline, pipeline  # noqa: E402
-from app.checks import email_auth as ea  # noqa: E402
-from app.checks.message import HARMFUL, detect_tactics, extract_indicators  # noqa: E402
-from app.schemas import Explanation, Finding, Report, RiskLevel, Severity  # noqa: E402
+import pytest
+from app import email_pipeline, pipeline
+from app.checks import email_auth as ea
+from app.checks.message import HARMFUL, detect_tactics, extract_indicators
+from app.schemas import Explanation, Finding, Report, RiskLevel, Severity
 
 FIX = Path(__file__).resolve().parent / "fixtures"
 
@@ -199,7 +198,7 @@ def test_password_form_in_email():
     ("invoice.pdf.exe", "application/octet-stream", b"MZ\x90\x00", Severity.HIGH, "double extension"),
     ("report.js", "application/javascript", b"var a=1", Severity.HIGH, "executable / script"),
     ("photo.jpg", "image/jpeg", b"MZ\x90\x00", Severity.HIGH, "content is actually EXE"),
-    ("doc‮xcod.exe", "application/octet-stream", b"MZ", Severity.HIGH, "right-to-left override"),
+    ("doc\u202excod.exe", "application/octet-stream", b"MZ", Severity.HIGH, "right-to-left override"),
     ("archive.zip", "application/zip", b"PK\x03\x04", Severity.MEDIUM, "archive"),
     ("Q3.xlsm", "application/vnd.ms-excel.sheet.macroEnabled.12", b"PK\x03\x04", Severity.MEDIUM, "macro"),
     ("scan.pdf", "image/png", b"%PDF-1.7", Severity.MEDIUM, "does not match"),
@@ -249,8 +248,8 @@ def test_email_level_rules_and_escalation():
 
 # ---------------------------------------------------------------- API endpoint ------------------------------
 def test_email_endpoint(fake_body, monkeypatch):
-    from fastapi.testclient import TestClient
     from app import main
+    from fastapi.testclient import TestClient
     monkeypatch.setattr(main, "_hits", main.defaultdict(main.deque))
     c = TestClient(main.app)
     r = c.post("/api/analyze/email", json={"raw": eml("phishing_bank.eml"), "live_dns": False})

@@ -13,7 +13,7 @@ import os
 import threading
 import time
 from collections import deque
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from functools import wraps
 from pathlib import Path
 
@@ -174,7 +174,7 @@ def anchor(report: Report) -> dict:
             "report_id": report.report_id, "chain_id": chain_id, "contract_address": contract.address,
             "registry_id": registry_id, "tx_hash": tx_hash, "block_number": block,
             "report_hash": report.report_hash, "indicator_hash": indicator, "reporter": account.address,
-            "anchored_at": datetime.now(timezone.utc).isoformat(),
+            "anchored_at": datetime.now(UTC).isoformat(),
         }
         store.save_anchor(record)
     return {**record, "explorer_url": _explorer_tx(chain_id, tx_hash), "already_anchored": False}
@@ -206,7 +206,7 @@ def verify(report: Report) -> dict:
         "integrity_ok": authentic and bool(contract.functions.verify(registry_id, _bytes32(recomputed)).call()),
         "onchain_hash": _hex(onchain_hash), "indicator_hash": _hex(onchain_indicator),
         "registry_id": registry_id, "reporter": reporter,
-        "onchain_timestamp": datetime.fromtimestamp(timestamp, timezone.utc).isoformat(),
+        "onchain_timestamp": datetime.fromtimestamp(timestamp, UTC).isoformat(),
         "tx_hash": record["tx_hash"], "block_number": record["block_number"],
         "explorer_url": _explorer_tx(chain_id, record["tx_hash"]),
     }

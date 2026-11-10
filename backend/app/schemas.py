@@ -146,7 +146,7 @@ class Report(BaseModel):
     recommendations: list[str] = []
     limitations: list[str] = []
     report_hash: str = ""                     # 0x-prefixed sha256 over canonical JSON (excluding this field)
-    # Track B: email reports only. Omitted from JSON when None so hashes of non-email reports are unchanged.
+    # Email reports only. Omitted from JSON when None so hashes of non-email reports are unchanged.
     email: EmailInfo | None = Field(default=None, exclude_if=lambda v: v is None)
 
 
@@ -158,7 +158,7 @@ class VerifyResponse(BaseModel):
     integrity_ok: bool
 
 
-# --- Track A: jobs ---
+# --- jobs ---
 # Async analysis jobs (POST /api/jobs, GET /api/jobs/{job_id}); see app/jobs.py and docs/API.md.
 JobStatus = Literal["queued", "running", "done", "failed"]
 
@@ -181,7 +181,7 @@ class JobInfo(BaseModel):
     report: Report | None = None              # full report when status == "done"
 
 
-# --- Track B: email ---
+# --- email ---
 class EmailAuthResult(BaseModel):
     spf: str | None = None                    # pass / fail / softfail / neutral / none / temperror / permerror
     dkim: str | None = None                   # pass / fail / none / ... ("not_reported": signed, but no verdict)
@@ -241,7 +241,7 @@ class EmailAnalyzeRequest(BaseModel):
     live_dns: bool = True                                        # DMARC / SPF DNS lookups for the sender domain
 
 
-# --- Web3: on-chain anchoring ---
+# --- on-chain anchoring ---
 class AnchorInfo(BaseModel):
     report_id: str
     chain_id: int

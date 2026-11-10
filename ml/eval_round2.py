@@ -11,12 +11,13 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent
 sys.path.insert(0, str(ROOT.parent / "backend"))
 sys.path.insert(0, str(ROOT))
-import joblib  # noqa: E402
 import eval_s2  # noqa: E402
+import joblib  # noqa: E402
 from app.checks.message import detect_tactics  # noqa: E402
 from app.ml.system2 import _consistent  # noqa: E402
 from app.risk import classify_message  # noqa: E402
-from app.schemas import ModelScore, RiskLevel as R  # noqa: E402
+from app.schemas import ModelScore  # noqa: E402
+from app.schemas import RiskLevel as R
 from round2_seeds import FRESH_HOLDOUT  # noqa: E402
 
 ART = ROOT.parent / "backend/app/ml/artifacts"

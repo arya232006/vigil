@@ -16,8 +16,13 @@ from pathlib import Path
 import joblib
 import numpy as np
 import pandas as pd
-from sklearn.metrics import (average_precision_score, brier_score_loss, confusion_matrix,
-                             precision_recall_fscore_support, roc_auc_score)
+from sklearn.metrics import (
+    average_precision_score,
+    brier_score_loss,
+    confusion_matrix,
+    precision_recall_fscore_support,
+    roc_auc_score,
+)
 from sklearn.model_selection import GroupShuffleSplit
 
 ROOT = Path(__file__).resolve().parent
@@ -60,6 +65,7 @@ def main():
     # Synthetic-but-realistic legitimate subdomains (service prefixes on popular registered domains). Without these,
     # the model only ever sees bare registered domains as benign and learns "has subdomain = phishing".
     import random as _r
+
     from app.ml.url_features import FREE_HOSTING, SHORTENERS
     _r.seed(9)
     prefixes = ["mail", "login", "accounts", "account", "secure", "support", "help", "docs", "developer", "api", "app",

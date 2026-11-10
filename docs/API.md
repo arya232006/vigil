@@ -73,7 +73,7 @@ database can defeat it by rewriting both. `chain-verify` is the check that catch
 Independent check (no trust in our server's verdict): `GET /api/reports/{id}/canonical`, sha256 it yourself
 (e.g. `ethers.sha256(ethers.toUtf8Bytes(text))`), and compare with `reports(id).reportHash` read from the contract.
 
-<!-- --- Track A: jobs --- -->
+<!-- --- jobs --- -->
 ## Async jobs & caching
 
 An analysis takes 2–15 s. Instead of holding one HTTP request open, the frontend can **submit a job, get a
@@ -190,7 +190,7 @@ async function investigate(input, fresh = false) {
 - `X-Cache` is listed in `Access-Control-Expose-Headers`, so browser code can read it cross-origin.
 
 
-<!-- ===================== Track B: email analysis (appended) ===================== -->
+<!-- ===================== email analysis ===================== -->
 ## Email analysis
 
 `POST /api/analyze/email` with a JSON body (no multipart upload). Send the **full source** of the message

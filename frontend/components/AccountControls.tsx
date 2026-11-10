@@ -22,7 +22,9 @@ export function AccountControls() {
     try {
       await signOut();
       rememberSignedIn(false);
-      window.location.assign("/"); // a full load, so nothing from this account stays in memory
+      // A full load on purpose, so nothing from this account stays in memory.
+      // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+      window.location.assign("/");
     } catch {
       setBusy(false);
     }

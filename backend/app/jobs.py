@@ -1,12 +1,14 @@
-"""Async analysis jobs + result cache (Track A).
+"""Async analysis jobs + result cache.
 
 An analysis takes 2-15 s, so the frontend submits a job (POST /api/jobs), gets a job id back at once and polls
 GET /api/jobs/{job_id}. Finished reports are cached by normalised input for a short TTL, so resubmitting the same
 URL / domain / message is answered straight from the report store. A submission whose input is already queued or
 running joins that job instead of starting a second analysis.
 
-Everything here is in memory and per process: restarting the API forgets jobs and the cache (reports stay in the
-report store). The cache only holds report ids; reports are always read back through `store.get`.
+Two backends with the same interface. JobManager keeps jobs and the cache in this process's memory, which is right
+for a single API instance; restarting it forgets them (reports stay in the report store). RedisJobManager, used when
+REDIS_URL is set, keeps them in Redis so any instance can answer for any job. The cache only holds report ids; reports
+are always read back through `store.get`.
 
 Signed-in users never share a cache entry or job, because each of them owns their own copy of a report.
 """
@@ -20,10 +22,10 @@ import threading
 import time
 import uuid
 from collections import OrderedDict
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
-from typing import Callable
 
-from . import pipeline, store
+from . import pipeline, shared, store
 from .checks.fetcher import BlockedTarget, normalize_url
 from .schemas import JobInfo, Report, RiskLevel
 
@@ -40,7 +42,7 @@ FINISHED = (DONE, FAILED)
 
 
 def _iso(ts: float) -> str:
-    return dt.datetime.fromtimestamp(ts, dt.timezone.utc).isoformat(timespec="milliseconds")
+    return dt.datetime.fromtimestamp(ts, dt.UTC).isoformat(timespec="milliseconds")
 
 
 def resolve_type(text: str, typ: str = "auto") -> str:
@@ -243,7 +245,7 @@ class JobManager:
             text, typ = job.text or "", job.req_type
         try:
             report = pipeline.analyze(text, typ, owner_id=job.owner_id)
-        except Exception as e:                           # noqa: BLE001 - any pipeline error fails just this job
+        except Exception as e:
             log.exception("analysis job %s failed", job.job_id)
             with self._lock:
                 self._finish(job, FAILED, error=_short_error(e))
@@ -264,7 +266,180 @@ class JobManager:
         self._pool.shutdown(wait=wait)
 
 
-manager = JobManager()
+JOB_TTL = int(os.getenv("JOB_TTL_SECONDS", "3600"))              # how long a job can be polled
+INFLIGHT_TTL = int(os.getenv("JOB_INFLIGHT_TTL_SECONDS", "900"))  # longest an analysis may hold its de-dup marker
+
+_RELEASE = """if redis.call('GET', KEYS[1]) == ARGV[1] then return redis.call('DEL', KEYS[1]) end return 0"""
+
+
+class QueueUnavailable(RuntimeError):
+    """The shared job state (Redis) couldn't be reached."""
+
+
+def _guarded(method):
+    def wrapper(*args, **kwargs):
+        try:
+            return method(*args, **kwargs)
+        except shared.RedisError as e:
+            raise QueueUnavailable(str(e)) from e
+    wrapper.__doc__ = method.__doc__
+    return wrapper
+
+
+class RedisJobManager:
+    """Jobs, the de-dup marker and the result cache in Redis, shared by every API instance.
+
+    Each analysis still runs in a worker thread of the instance that accepted it. If that instance dies mid-analysis,
+    the job stays `running` until it expires, and the same input can be submitted again once its de-dup marker times
+    out (JOB_INFLIGHT_TTL_SECONDS).
+    """
+
+    def __init__(self, redis_client, workers: int = WORKERS, ttl_url: float = CACHE_TTL_URL,
+                 ttl_message: float = CACHE_TTL_MESSAGE, job_ttl: int = JOB_TTL, inflight_ttl: int = INFLIGHT_TTL):
+        self._r = redis_client
+        self.ttl_url, self.ttl_message = ttl_url, ttl_message
+        self.job_ttl, self.inflight_ttl = job_ttl, inflight_ttl
+        self._pool = ThreadPoolExecutor(max_workers=max(1, workers), thread_name_prefix="vigil-job")
+
+    @staticmethod
+    def _job_key(job_id: str) -> str:
+        return shared.key("job", job_id)
+
+    @staticmethod
+    def _cache_key(key: str) -> str:
+        return shared.key("cache", shared.digest(key))
+
+    @staticmethod
+    def _inflight_key(key: str) -> str:
+        return shared.key("inflight", shared.digest(key))
+
+    def _ttl(self, input_type: str) -> float:
+        return self.ttl_message if input_type == "message" else self.ttl_url
+
+    def _cache_put(self, key: str, input_type: str, report: Report, pipe=None) -> None:
+        ttl = self._ttl(input_type)
+        if ttl <= 0 or report.risk_level == RiskLevel.INCONCLUSIVE:   # often a temporary outage: don't repeat it
+            return
+        (pipe or self._r).set(self._cache_key(key), report.report_id, px=int(ttl * 1000))
+
+    def _cached(self, key: str) -> Report | None:
+        rid = self._r.get(self._cache_key(key))
+        if rid is None:
+            return None
+        report = store.get(rid)
+        if report is None:                               # report vanished from the store: forget the entry
+            self._r.delete(self._cache_key(key))
+        return report
+
+    def _save(self, job_id: str, fields: dict, pipe=None) -> None:
+        target = pipe or self._r
+        target.hset(self._job_key(job_id), mapping={k: "" if v is None else str(v) for k, v in fields.items()})
+        target.expire(self._job_key(job_id), self.job_ttl)
+
+    def _load(self, job_id: str) -> tuple[JobInfo, str] | None:
+        """The job and its owner ("" for a guest), or None if unknown or expired."""
+        h = self._r.hgetall(self._job_key(job_id))
+        if not h:
+            return None
+        created = float(h["created"])
+        started = float(h["started"]) if h.get("started") else None
+        finished = float(h["finished"]) if h.get("finished") else None
+        info = JobInfo(job_id=job_id, status=h["status"], input_type=h["input_type"], created_at=_iso(created),
+                       started_at=_iso(started) if started is not None else None,
+                       finished_at=_iso(finished) if finished is not None else None,
+                       elapsed_ms=int(((finished or time.time()) - created) * 1000),
+                       report_id=h.get("report_id") or None, error=h.get("error") or None, cached=h.get("cached") == "1")
+        return info, h.get("owner", "")
+
+    def _view(self, job_id: str) -> JobInfo | None:
+        loaded = self._load(job_id)
+        if loaded is None:
+            return None
+        info = loaded[0]
+        if info.status == DONE and info.report_id:
+            info.report = store.get(info.report_id)
+        return info
+
+    @_guarded
+    def cached_report(self, text: str, typ: str = "auto", owner_id: str | None = None) -> Report | None:
+        return self._cached(cache_key(text, typ, owner_id))
+
+    @_guarded
+    def remember(self, text: str, typ: str, report: Report, owner_id: str | None = None) -> None:
+        self._cache_put(cache_key(text, typ, owner_id), resolve_type(text, typ), report)
+
+    @_guarded
+    def clear_cache(self) -> None:
+        for k in self._r.scan_iter(match=shared.key("cache", "*")):
+            self._r.delete(k)
+
+    @_guarded
+    def submit(self, text: str, typ: str = "auto", fresh: bool = False,
+               on_new_work: Callable[[], None] | None = None, owner_id: str | None = None) -> JobInfo:
+        """Same contract as JobManager.submit, across every instance: one in-flight job per input."""
+        input_type = resolve_type(text, typ)
+        key = cache_key(text, typ, owner_id)
+        inflight = self._inflight_key(key)
+        for _ in range(2):                               # a second pass covers a marker that expired mid-check
+            running = self._r.get(inflight)
+            if running and (info := self._view(running)) is not None:
+                return info
+            if not fresh and (report := self._cached(key)) is not None:
+                job_id, now = uuid.uuid4().hex[:12], time.time()
+                self._save(job_id, {"status": DONE, "input_type": input_type, "owner": owner_id, "cached": 1,
+                                    "report_id": report.report_id, "created": now, "started": now, "finished": now})
+                info = self._view(job_id)
+                info.report = report
+                return info
+            if on_new_work is not None:
+                on_new_work()
+                on_new_work = None                       # charge the rate limit once, even on a second pass
+            job_id = uuid.uuid4().hex[:12]
+            self._save(job_id, {"status": QUEUED, "input_type": input_type, "owner": owner_id, "cached": 0,
+                                "created": time.time()})
+            if self._r.set(inflight, job_id, nx=True, ex=self.inflight_ttl):
+                self._pool.submit(self._run, job_id, key, text, typ, input_type, owner_id)
+                return self._view(job_id)
+            self._r.delete(self._job_key(job_id))        # another instance queued it first: join that job
+        raise QueueUnavailable("could not queue the analysis")
+
+    def _run(self, job_id: str, key: str, text: str, typ: str, input_type: str, owner_id: str | None) -> None:
+        try:
+            try:
+                self._save(job_id, {"status": RUNNING, "started": time.time()})
+                report = pipeline.analyze(text, typ, owner_id=owner_id)
+            except shared.RedisError:
+                raise
+            except Exception as e:
+                log.exception("analysis job %s failed", job_id)
+                self._save(job_id, {"status": FAILED, "error": _short_error(e), "finished": time.time()})
+                return
+            pipe = self._r.pipeline(transaction=True)    # cache + finish together: no window for a duplicate run
+            self._cache_put(key, input_type, report, pipe)
+            self._save(job_id, {"status": DONE, "report_id": report.report_id, "finished": time.time()}, pipe)
+            pipe.execute()
+        except shared.RedisError:
+            log.exception("job %s lost its connection to Redis", job_id)
+        finally:
+            try:
+                self._r.eval(_RELEASE, 1, self._inflight_key(key), job_id)
+            except shared.RedisError:
+                log.warning("could not release the de-dup marker for job %s; it expires on its own", job_id)
+
+    @_guarded
+    def get(self, job_id: str, viewer_id: str | None = None) -> JobInfo | None:
+        """Job by id (with the full report when done), or None if unknown, expired or another user's."""
+        loaded = self._load(job_id)
+        if loaded is None or loaded[1] not in ("", viewer_id or ""):
+            return None
+        return self._view(job_id)
+
+    def shutdown(self, wait: bool = True) -> None:
+        self._pool.shutdown(wait=wait)
+
+
+BACKEND = "redis" if shared.client() is not None else "memory"
+manager = RedisJobManager(shared.client()) if BACKEND == "redis" else JobManager()
 
 
 def submit(text: str, typ: str = "auto", fresh: bool = False,
