@@ -16,13 +16,13 @@ import hashlib
 import ipaddress
 import os
 import re
+from collections.abc import Callable
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from email import message_from_string, policy
 from email.message import EmailMessage
 from email.utils import getaddresses, parsedate_to_datetime
 from html.parser import HTMLParser
-from typing import Callable
 from urllib.parse import parse_qs, urlsplit
 
 import dns.resolver
@@ -1155,7 +1155,7 @@ def _worse(a: Severity, b: Severity) -> Severity:
 
 
 def assess_attachment(filename: str, content_type: str, data: bytes) -> Attachment:
-    shown = filename.replace("‮", "[U+202E]")
+    shown = filename.replace("\u202e", "[U+202E]")
     att = Attachment(filename=shown[:200], content_type=content_type, size=len(data),
                      sha256=hashlib.sha256(data).hexdigest(), detected_type=sniff(data))
     name = filename.lower().strip().rstrip(".")
@@ -1166,7 +1166,7 @@ def assess_attachment(filename: str, content_type: str, data: bytes) -> Attachme
         att.reasons.append(reason)
         att.severity = _worse(att.severity, sev)
 
-    if "‮" in filename:
+    if "\u202e" in filename:
         add("file name contains a right-to-left override character (U+202E) that visually reverses the extension",
             Severity.HIGH)
     if ext in EXEC_EXT:
@@ -1273,7 +1273,7 @@ def received_findings(p: Parsed) -> tuple[list[dict], str | None, list[Finding]]
                  "the sender.")]
     try:
         sent = parsedate_to_datetime(p.date) if p.date else None
-        if sent and sent.tzinfo and sent - dt.datetime.now(dt.timezone.utc) > dt.timedelta(days=1):
+        if sent and sent.tzinfo and sent - dt.datetime.now(dt.UTC) > dt.timedelta(days=1):
             fs.append(_f("Date header is in the future", Severity.LOW, f"The message claims to be sent on {p.date}.",
                          {"date": p.date}, "Header analysis", "context"))
     except (TypeError, ValueError, IndexError):

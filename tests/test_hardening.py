@@ -6,13 +6,12 @@ import threading
 import time
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app import auth
 from app.checks import fetcher, message, page
 from app.checks.fetcher import FetchResult, Hop
 from app.main import app
 from app.ml import s2_prompt
+from fastapi.testclient import TestClient
 
 
 @pytest.fixture

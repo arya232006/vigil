@@ -10,8 +10,7 @@ import dns.resolver
 import httpx
 import idna
 
-from ..ml.url_features import (BRANDS, FREE_HOSTING, SHORTENERS, SUSPICIOUS_TLDS, _extract, brand_match,
-                               damerau, is_ip)
+from ..ml.url_features import BRANDS, FREE_HOSTING, SHORTENERS, SUSPICIOUS_TLDS, _extract, brand_match, is_ip
 from ..schemas import Finding, Severity
 
 # Official registered domains for brands (avoid flagging the real thing).
@@ -142,7 +141,8 @@ def analyze(host: str, path_and_query: str = "", tranco_rank: int | None = None)
                 {"registered_domain": reg, "brands": in_path}, "URL structure analysis")
 
     # Embedded redirect parameters: ?url= / ?redirect= / ?next= ... pointing at a different site
-    from urllib.parse import parse_qsl, unquote, urlsplit as _us
+    from urllib.parse import parse_qsl, unquote
+    from urllib.parse import urlsplit as _us
     q = path_and_query.split("?", 1)[1] if "?" in path_and_query else ""
     for key, val in parse_qsl(q, keep_blank_values=False):
         v = unquote(unquote(val)).strip()
@@ -181,7 +181,7 @@ def analyze(host: str, path_and_query: str = "", tranco_rank: int | None = None)
         if rd.get("available") and rd.get("created"):
             try:
                 created = dt.datetime.fromisoformat(rd["created"].replace("Z", "+00:00"))
-                age = (dt.datetime.now(dt.timezone.utc) - created).days
+                age = (dt.datetime.now(dt.UTC) - created).days
                 info["domain_created"], info["domain_age_days"], info["registrar"] = created.date().isoformat(), age, rd.get("registrar")
                 if age < 30:
                     add("Very newly registered domain", Severity.HIGH, f"Registered {age} days ago ({created.date()}).",

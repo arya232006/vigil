@@ -7,7 +7,6 @@ import os
 import re
 
 import httpx
-
 from seeds import SCAM_TYPES, TACTICS
 
 OLLAMA = os.getenv("OLLAMA_URL", "http://localhost:11434")

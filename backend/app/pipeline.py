@@ -15,8 +15,19 @@ from .checks.fetcher import BlockedTarget, UnresolvableHost, is_public_ip, norma
 from .checks.message import detect_tactics, extract_indicators
 from .ml import system1, system2
 from .ml.url_features import SHORTENERS, _extract, is_ip
-from .schemas import (CheckStatus, Correlation, Explanation, Finding, Indicators, ModelScore, RedirectHop, Report,
-                      RiskLevel, Severity, TargetInfo)
+from .schemas import (
+    CheckStatus,
+    Correlation,
+    Explanation,
+    Finding,
+    Indicators,
+    ModelScore,
+    RedirectHop,
+    Report,
+    RiskLevel,
+    Severity,
+    TargetInfo,
+)
 
 POOL = ThreadPoolExecutor(16)
 SEV_ORDER = {Severity.CRITICAL: 0, Severity.HIGH: 1, Severity.MEDIUM: 2, Severity.LOW: 3, Severity.INFO: 4}
@@ -35,7 +46,7 @@ LEVEL_ADVICE = {
 
 
 def now() -> str:
-    return dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
+    return dt.datetime.now(dt.UTC).isoformat(timespec="seconds")
 
 
 def detect_type(text: str) -> str:

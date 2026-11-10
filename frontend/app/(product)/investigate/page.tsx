@@ -4,7 +4,7 @@ import jsQR from "jsqr";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { DitherPanel } from "@/app/(marketing)/DitherPanel";
-import { Button, Card, ErrorNote, PageTitle } from "@/components/ui";
+import { Button, Card, ErrorNote, PageTitle, ToggleButton } from "@/components/ui";
 import { analyzeEmail, errorMessage, investigate } from "@/lib/api";
 
 const MAX_EMAIL_CHARS = 2_000_000;
@@ -152,21 +152,18 @@ export default function InvestigatePage() {
           <form onSubmit={submit}>
             <div className="mb-3 flex flex-wrap gap-1.5" role="tablist">
               {TABS.map(({ id, label }) => (
-                <button
+                <ToggleButton
                   key={id}
-                  type="button"
                   role="tab"
+                  active={tab === id}
                   aria-selected={tab === id}
                   onClick={() => {
                     setTab(id);
                     setError(null);
                   }}
-                  className={`terminal cursor-pointer border border-(--l-ink) px-3 py-0.5 text-xl ${
-                    tab === id ? "bg-(--l-ink) text-(--l-paper)" : "bg-(--l-paper) hover:bg-sunken"
-                  }`}
                 >
                   {label}
-                </button>
+                </ToggleButton>
               ))}
             </div>
 

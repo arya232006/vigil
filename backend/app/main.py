@@ -1,4 +1,4 @@
-"""Vigil API — AI + cybersecurity investigation engine.
+"""Vigil API: AI + cybersecurity investigation engine.
 
 Run: scripts/run_api.sh (binds to localhost; see README for deploying)
 """
@@ -8,28 +8,55 @@ import os
 import threading
 import time
 from collections import defaultdict, deque
-
+from contextlib import asynccontextmanager
 from typing import Annotated
 
 from fastapi import FastAPI, HTTPException, Query, Request, Response
+from fastapi.concurrency import run_in_threadpool
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
-from fastapi.responses import PlainTextResponse
+from fastapi.responses import JSONResponse, PlainTextResponse
+from pydantic import ValidationError
 from starlette.datastructures import MutableHeaders
-from fastapi.concurrency import run_in_threadpool
 
-from . import auth, pipeline, store
+from . import auth, chain, email_pipeline, jobs, pipeline, shared, store
 from .checks import threatintel
 from .ml import system1, system2
-from .schemas import AnalyzeRequest, Report, VerifyResponse
+from .schemas import (
+    AnalyzeRequest,
+    AnchorInfo,
+    ChainVerifyResponse,
+    EmailAnalyzeRequest,
+    JobInfo,
+    JobRequest,
+    Report,
+    VerifyResponse,
+)
 
-app = FastAPI(title="Vigil API", version="1.0",
+# ---------------------------------------------------------------- configuration -------------------------------------
+MAX_JSON_BODY_BYTES = int(os.getenv("MAX_JSON_BODY_BYTES", "262144"))     # 20,000 characters, even if fully escaped
+EMAIL_MAX_BODY_BYTES = int(os.getenv("EMAIL_MAX_BODY_BYTES", str(3 * 1024 * 1024)))  # 2 MB .eml + JSON escaping
+DOC_PATHS = ("/docs", "/redoc", "/openapi.json")
+RATE = int(os.getenv("RATE_LIMIT_PER_MIN", "20"))
+CHAIN_RATE = int(os.getenv("CHAIN_RATE_LIMIT_PER_MIN", "120"))
+AUTH_RATE = int(os.getenv("AUTH_RATE_LIMIT_PER_MIN", "10"))
+TRUST_PROXY = os.getenv("TRUST_PROXY", "0") == "1"     # set behind a reverse proxy (Hugging Face Spaces, tunnels)
+
+
+@asynccontextmanager
+async def _lifespan(_: FastAPI):
+    """Warm the threat feeds and models in the background, so the first request doesn't pay for it."""
+    threading.Thread(target=threatintel.load, daemon=True).start()
+    threading.Thread(target=lambda: (system1._url(), system1._msg()), daemon=True).start()
+    yield
+
+
+app = FastAPI(title="Vigil API", version="1.0", lifespan=_lifespan,
               description="Self-hosted AI + cybersecurity threat investigation. No third-party AI services.")
 
-MAX_JSON_BODY_BYTES = int(os.getenv("MAX_JSON_BODY_BYTES", "262144"))     # 20,000 characters, even if fully escaped
-DOC_PATHS = ("/docs", "/redoc", "/openapi.json")
 
-
+# ---------------------------------------------------------------- middleware -----------------------------------------
 class _Hardening:
     """Caps request bodies before they are buffered and adds security headers. Pure ASGI, so streaming still works."""
 
@@ -78,20 +105,36 @@ app.add_middleware(CORSMiddleware, allow_origins=auth.allowed_origins(), allow_c
 app.add_middleware(TrustedHostMiddleware,                  # stops DNS rebinding against a locally running API
                    allowed_hosts=[h.strip() for h in os.getenv("ALLOWED_HOSTS", "localhost,127.0.0.1,[::1]").split(",")])
 
-RATE = int(os.getenv("RATE_LIMIT_PER_MIN", "20"))
-CHAIN_RATE = int(os.getenv("CHAIN_RATE_LIMIT_PER_MIN", "120"))
-AUTH_RATE = int(os.getenv("AUTH_RATE_LIMIT_PER_MIN", "10"))
+
+@app.exception_handler(jobs.QueueUnavailable)
+async def _queue_unavailable(request: Request, exc: jobs.QueueUnavailable):
+    return JSONResponse({"detail": "The job queue is unavailable right now. Try again shortly."}, 503)
+
+
+# ---------------------------------------------------------------- shared helpers -------------------------------------
 _hits: dict[tuple[str, str], deque] = defaultdict(deque)
 
 
-@app.on_event("startup")
-def _startup():
-    threading.Thread(target=threatintel.load, daemon=True).start()
-    threading.Thread(target=lambda: (system1._url(), system1._msg()), daemon=True).start()
+def _client_ip(request: Request) -> str:
+    """Real visitor IP. Behind a trusted proxy every request comes from the proxy, so per-IP rate limiting would
+    become one global limit; use the left-most X-Forwarded-For entry (or CF-Connecting-IP) instead."""
+    if TRUST_PROXY:
+        cf = request.headers.get("cf-connecting-ip")
+        xff = request.headers.get("x-forwarded-for", "")
+        ip = cf or (xff.split(",")[0].strip() if xff else "")
+        if ip:
+            return ip[:64]
+    return request.client.host if request.client else "unknown"
 
 
 def _rate_limit(ip: str, bucket: str = "analysis", limit: int | None = None):
+    """Shared across instances through Redis when REDIS_URL is set; otherwise, or if Redis is down, counted per process."""
     limit = RATE if limit is None else limit
+    allowed = shared.allow(bucket, ip, limit)
+    if allowed is False:
+        raise HTTPException(429, f"Rate limit: {limit} requests per minute")
+    if allowed:
+        return
     now = time.time()
     if len(_hits) > 50_000:                                 # forget idle clients instead of growing without bound
         for key in [k for k, v in _hits.items() if not v or now - v[-1] > 60]:
@@ -104,6 +147,39 @@ def _rate_limit(ip: str, bucket: str = "analysis", limit: int | None = None):
     q.append(now)
 
 
+def _report_or_404(report_id: str, viewer_id: str | None) -> Report:
+    r = store.get_for_viewer(report_id, viewer_id)
+    if not r:
+        raise HTTPException(404, "report not found")
+    return r
+
+
+def _chain_call(fn, *args):
+    """A chain outage must never read as a failed integrity check, so it surfaces as 502/503."""
+    try:
+        return fn(*args)
+    except chain.ChainRateLimited as e:
+        raise HTTPException(429, str(e)) from None
+    except chain.ChainNotConfigured as e:
+        raise HTTPException(503, str(e)) from None
+    except chain.ChainError as e:
+        raise HTTPException(502, str(e)) from None
+
+
+# ---------------------------------------------------------------- service -------------------------------------------
+@app.get("/api/health")
+def health():
+    public = {k: v for k, v in system2.status().items() if k != "student_url"}
+    return {"status": "ok", "feeds": threatintel.feed_status(), "system2": public, "shared_state": jobs.BACKEND}
+
+
+@app.get("/api/models")
+def models():
+    """Training/evaluation metrics of the self-hosted models."""
+    return system1.metrics()
+
+
+# ---------------------------------------------------------------- accounts ------------------------------------------
 @app.post("/api/auth/signup", status_code=201)
 def signup(details: auth.SignUp, request: Request, response: Response):
     auth.require_allowed_origin(request)
@@ -148,12 +224,63 @@ def google_callback(request: Request):
     return auth.google_finish(request)
 
 
+# ---------------------------------------------------------------- analysis ------------------------------------------
 @app.post("/api/analyze", response_model=Report)
 async def analyze(req: AnalyzeRequest, request: Request, user: auth.Viewer, fresh: bool = False):
-    # Track A: result cache (?fresh=true bypasses it) + X-Cache header; see _analyze_cached at the end of the file.
-    return await _analyze_cached(req, request, fresh, user)
+    """Synchronous analysis. Answered from the result cache unless `fresh`; the X-Cache header says which.
+    Rate limiting only applies when a new analysis actually runs."""
+    report = None if fresh else jobs.cached_report(req.input, req.type, user)
+    cache = "HIT" if report is not None else "MISS"
+    if report is None:
+        _rate_limit(_client_ip(request))
+        report = await run_in_threadpool(pipeline.analyze, req.input, req.type, user)
+        jobs.remember(req.input, req.type, report, user)
+    return JSONResponse(report.model_dump(mode="json"),
+                        headers={"X-Cache": cache, "Access-Control-Expose-Headers": "X-Cache"})
 
 
+@app.post("/api/jobs", response_model=JobInfo, status_code=202)
+async def create_job(req: JobRequest, request: Request, user: auth.Viewer):
+    """Queue an analysis and return at once; poll GET /api/jobs/{job_id}. A cached result comes back already
+    `done` with `cached: true` and the report; an identical input already in progress returns that job."""
+    return jobs.submit(req.input, req.type, fresh=req.fresh, on_new_work=lambda: _rate_limit(_client_ip(request)),
+                       owner_id=user)
+
+
+@app.get("/api/jobs/{job_id}", response_model=JobInfo)
+async def get_job(job_id: str, user: auth.Viewer):
+    """Job status; includes the full `report` once `status` is `done`. 404 for unknown or evicted ids."""
+    job = jobs.get(job_id, user)
+    if job is None:
+        raise HTTPException(404, "job not found")
+    return job
+
+
+@app.post("/api/analyze/email", response_model=Report, openapi_extra={"requestBody": {
+    "required": True, "content": {"application/json": {"schema": EmailAnalyzeRequest.model_json_schema()}}}})
+async def analyze_email(request: Request, user: auth.Viewer):
+    """Analyse a raw email (.eml source): SPF/DKIM/DMARC + alignment, sender identity, deceptive links,
+    attachments, Received chain, sender-domain DNS posture, plus the message pipeline on subject + body.
+
+    JSON body {"raw": "<full .eml source>", "live_dns": true}, read with a hard size cap before parsing so an oversized
+    upload can't exhaust memory."""
+    _rate_limit(_client_ip(request))
+    declared = request.headers.get("content-length", "")
+    if declared.isdigit() and int(declared) > EMAIL_MAX_BODY_BYTES:
+        raise HTTPException(413, f"Email too large (max {EMAIL_MAX_BODY_BYTES} bytes of JSON)")
+    buf = bytearray()
+    async for chunk in request.stream():
+        buf += chunk
+        if len(buf) > EMAIL_MAX_BODY_BYTES:
+            raise HTTPException(413, f"Email too large (max {EMAIL_MAX_BODY_BYTES} bytes of JSON)")
+    try:
+        req = EmailAnalyzeRequest.model_validate_json(bytes(buf))
+    except ValidationError as e:
+        raise RequestValidationError(e.errors(include_url=False)) from None
+    return await run_in_threadpool(email_pipeline.analyze_email, req.raw, req.live_dns, user)
+
+
+# ---------------------------------------------------------------- reports -------------------------------------------
 @app.get("/api/reports")
 def reports(user: auth.SignedInUser, limit: Annotated[int, Query(ge=1, le=200)] = 50):
     return store.list_reports(user, min(limit, 200))
@@ -185,128 +312,7 @@ def stats(user: auth.SignedInUser):
     return store.stats(user)
 
 
-@app.get("/api/health")
-def health():
-    public = {k: v for k, v in system2.status().items() if k != "student_url"}
-    return {"status": "ok", "feeds": threatintel.feed_status(), "system2": public}
-
-
-@app.get("/api/models")
-def models():
-    """Training/evaluation metrics of the self-hosted models."""
-    return system1.metrics()
-
-
-# --- Track A: jobs ---
-# Async analysis jobs + the result cache shared with POST /api/analyze. Implementation: app/jobs.py.
-from fastapi.responses import JSONResponse  # noqa: E402
-
-from . import jobs  # noqa: E402
-from .schemas import JobInfo, JobRequest  # noqa: E402
-
-
-TRUST_PROXY = os.getenv("TRUST_PROXY", "0") == "1"     # set behind a reverse proxy (Hugging Face Spaces, tunnels)
-
-
-def _client_ip(request: Request) -> str:
-    """Real visitor IP. Behind a trusted proxy every request comes from the proxy, so per-IP rate limiting would
-    become one global limit; use the left-most X-Forwarded-For entry (or CF-Connecting-IP) instead."""
-    if TRUST_PROXY:
-        cf = request.headers.get("cf-connecting-ip")
-        xff = request.headers.get("x-forwarded-for", "")
-        ip = cf or (xff.split(",")[0].strip() if xff else "")
-        if ip:
-            return ip[:64]
-    return request.client.host if request.client else "unknown"
-
-
-async def _analyze_cached(req: AnalyzeRequest, request: Request, fresh: bool, user: str | None) -> JSONResponse:
-    """Body of POST /api/analyze: answer from the result cache unless fresh, else analyse synchronously.
-    Rate limiting only applies when a new analysis actually runs."""
-    report = None if fresh else jobs.cached_report(req.input, req.type, user)
-    cache = "HIT" if report is not None else "MISS"
-    if report is None:
-        _rate_limit(_client_ip(request))
-        report = await run_in_threadpool(pipeline.analyze, req.input, req.type, user)
-        jobs.remember(req.input, req.type, report, user)
-    return JSONResponse(report.model_dump(mode="json"),
-                        headers={"X-Cache": cache, "Access-Control-Expose-Headers": "X-Cache"})
-
-
-@app.post("/api/jobs", response_model=JobInfo, status_code=202)
-async def create_job(req: JobRequest, request: Request, user: auth.Viewer):
-    """Queue an analysis and return at once; poll GET /api/jobs/{job_id}. A cached result comes back already
-    `done` with `cached: true` and the report; an identical input already in progress returns that job."""
-    return jobs.submit(req.input, req.type, fresh=req.fresh, on_new_work=lambda: _rate_limit(_client_ip(request)),
-                       owner_id=user)
-
-
-@app.get("/api/jobs/{job_id}", response_model=JobInfo)
-async def get_job(job_id: str, user: auth.Viewer):
-    """Job status; includes the full `report` once `status` is `done`. 404 for unknown or evicted ids."""
-    job = jobs.get(job_id, user)
-    if job is None:
-        raise HTTPException(404, "job not found")
-    return job
-
-
-# ================================================================ Track B: email (.eml) analysis ================
-# Appended block (owned by Track B). JSON body {"raw": "<full .eml source>", "live_dns": true}; no multipart
-# dependency. The body is read with a hard size cap BEFORE JSON parsing so oversized uploads cannot exhaust memory.
-from fastapi.exceptions import RequestValidationError  # noqa: E402
-from pydantic import ValidationError  # noqa: E402
-
-from . import email_pipeline  # noqa: E402
-from .schemas import EmailAnalyzeRequest  # noqa: E402
-
-EMAIL_MAX_BODY_BYTES = int(os.getenv("EMAIL_MAX_BODY_BYTES", str(3 * 1024 * 1024)))  # 2 MB .eml + JSON escaping
-
-
-@app.post("/api/analyze/email", response_model=Report, openapi_extra={"requestBody": {
-    "required": True, "content": {"application/json": {"schema": EmailAnalyzeRequest.model_json_schema()}}}})
-async def analyze_email(request: Request, user: auth.Viewer):
-    """Analyse a raw email (.eml source): SPF/DKIM/DMARC + alignment, sender identity, deceptive links,
-    attachments, Received chain, sender-domain DNS posture, plus the message pipeline on subject + body."""
-    _rate_limit(_client_ip(request))
-    declared = request.headers.get("content-length", "")
-    if declared.isdigit() and int(declared) > EMAIL_MAX_BODY_BYTES:
-        raise HTTPException(413, f"Email too large (max {EMAIL_MAX_BODY_BYTES} bytes of JSON)")
-    buf = bytearray()
-    async for chunk in request.stream():
-        buf += chunk
-        if len(buf) > EMAIL_MAX_BODY_BYTES:
-            raise HTTPException(413, f"Email too large (max {EMAIL_MAX_BODY_BYTES} bytes of JSON)")
-    try:
-        req = EmailAnalyzeRequest.model_validate_json(bytes(buf))
-    except ValidationError as e:
-        raise RequestValidationError(e.errors(include_url=False)) from None
-    return await run_in_threadpool(email_pipeline.analyze_email, req.raw, req.live_dns, user)
-
-
-# ================================================================ Web3: on-chain anchoring =======================
-from . import chain  # noqa: E402
-from .schemas import AnchorInfo, ChainVerifyResponse  # noqa: E402
-
-
-def _report_or_404(report_id: str, viewer_id: str | None) -> Report:
-    r = store.get_for_viewer(report_id, viewer_id)
-    if not r:
-        raise HTTPException(404, "report not found")
-    return r
-
-
-def _chain_call(fn, *args):
-    """A chain outage must never read as a failed integrity check, so it surfaces as 502/503."""
-    try:
-        return fn(*args)
-    except chain.ChainRateLimited as e:
-        raise HTTPException(429, str(e)) from None
-    except chain.ChainNotConfigured as e:
-        raise HTTPException(503, str(e)) from None
-    except chain.ChainError as e:
-        raise HTTPException(502, str(e)) from None
-
-
+# ---------------------------------------------------------------- on-chain anchoring --------------------------------
 @app.get("/api/chain/status")
 def chain_status(request: Request):
     _rate_limit(_client_ip(request), "chain", CHAIN_RATE)

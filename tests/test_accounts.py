@@ -5,10 +5,9 @@ import uuid
 from urllib.parse import parse_qs, urlparse
 
 import pytest
-from fastapi.testclient import TestClient
-
 from app import auth, jobs, main, pipeline, store
 from app.schemas import Explanation, Report, RiskLevel
+from fastapi.testclient import TestClient
 
 ORIGIN = "http://localhost:3000"
 PASSWORD = "correct horse battery"
