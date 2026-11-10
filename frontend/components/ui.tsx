@@ -65,22 +65,43 @@ export function Mono({ children }: { children: ReactNode }) {
   return <span className="code text-[13px] break-all">{children}</span>;
 }
 
+type ButtonVariant = "primary" | "secondary";
+
+const BUTTON_LOOK: Record<ButtonVariant, string> = {
+  primary: "bg-(--l-ink) text-(--l-paper) hover:bg-(--l-pink) hover:text-(--l-ink)",
+  secondary: "bg-(--l-paper) text-(--l-ink) hover:bg-(--l-ink) hover:text-(--l-paper)",
+};
+
+/** The site's button look, also for links that should read as buttons. */
+export function buttonClass(variant: ButtonVariant = "secondary"): string {
+  return `terminal cursor-pointer border border-(--l-ink) px-3 py-1 text-xl leading-tight disabled:cursor-not-allowed disabled:opacity-50 ${BUTTON_LOOK[variant]}`;
+}
+
 export function Button({
   children,
   variant = "secondary",
   ...props
-}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: "primary" | "secondary" }) {
-  const look =
-    variant === "primary"
-      ? "bg-(--l-ink) text-(--l-paper) hover:bg-(--l-pink) hover:text-(--l-ink)"
-      : "bg-(--l-paper) text-(--l-ink) hover:bg-(--l-ink) hover:text-(--l-paper)";
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { variant?: ButtonVariant }) {
   return (
-    <button
-      {...props}
-      className={`terminal cursor-pointer border border-(--l-ink) px-3 py-1 text-xl leading-tight disabled:cursor-not-allowed disabled:opacity-50 ${look}`}
-    >
+    <button {...props} className={buttonClass(variant)}>
       {children}
     </button>
+  );
+}
+
+/** A tab, filter or choice that shows as pressed while it is the selected one. */
+export function ToggleButton({
+  active,
+  className = "",
+  ...props
+}: React.ButtonHTMLAttributes<HTMLButtonElement> & { active: boolean }) {
+  const look = active ? "bg-(--l-ink) text-(--l-paper)" : "bg-(--l-paper) hover:bg-sunken";
+  return (
+    <button
+      type="button"
+      {...props}
+      className={`terminal cursor-pointer border border-(--l-ink) px-3 py-0.5 text-xl ${look} ${className}`}
+    />
   );
 }
 

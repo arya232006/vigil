@@ -3,7 +3,7 @@
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
-import { Button, Card, ErrorNote } from "@/components/ui";
+import { Button, Card, ErrorNote, ToggleButton, buttonClass } from "@/components/ui";
 import { API, errorMessage, generateUsername, signIn, signUp } from "@/lib/api";
 import { useSession } from "@/lib/session";
 
@@ -84,16 +84,10 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   };
 
   const methodButton = (value: Method, label: string) => (
-    <button
-      type="button"
-      aria-pressed={method === value}
-      onClick={() => chooseMethod(value)}
-      className={`terminal flex-1 cursor-pointer border border-(--l-ink) px-3 py-0.5 text-xl ${
-        method === value ? "bg-(--l-ink) text-(--l-paper)" : "bg-(--l-paper) hover:bg-sunken"
-      }`}
-    >
+    <ToggleButton active={method === value} aria-pressed={method === value} onClick={() => chooseMethod(value)}
+      className="flex-1">
       {label}
-    </button>
+    </ToggleButton>
   );
 
   const other = creating ? "/sign-in" : "/sign-up";
@@ -173,7 +167,7 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
       {google && (
         <a
           href={`${API}/api/auth/google/start?next=${encodeURIComponent(next)}`}
-          className="terminal mt-3 block border border-(--l-ink) bg-(--l-paper) px-3 py-1 text-center text-xl leading-tight hover:bg-(--l-ink) hover:text-(--l-paper)"
+          className={`${buttonClass()} mt-3 block text-center`}
         >
           Continue with Google
         </a>

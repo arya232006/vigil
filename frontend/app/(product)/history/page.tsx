@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useState } from "react";
-import { Card, ErrorNote, Loading, PageTitle, RiskBadge } from "@/components/ui";
+import { Card, ErrorNote, Loading, PageTitle, RiskBadge, ToggleButton } from "@/components/ui";
 import { useApi } from "@/lib/api";
 import { RISK, RISK_ORDER, defang, formatTime } from "@/lib/format";
 import type { ReportSummary, RiskLevel } from "@/lib/types";
@@ -18,17 +18,9 @@ export default function HistoryPage() {
   const rows = data?.filter((r) => filter === "all" || r.risk_level === filter) ?? [];
 
   const filterButton = (value: RiskLevel | "all", label: string, count: number) => (
-    <button
-      key={value}
-      type="button"
-      aria-pressed={filter === value}
-      onClick={() => setFilter(value)}
-      className={`terminal cursor-pointer border border-(--l-ink) px-3 py-0.5 text-xl ${
-        filter === value ? "bg-(--l-ink) text-(--l-paper)" : "bg-(--l-paper) hover:bg-sunken"
-      }`}
-    >
+    <ToggleButton key={value} active={filter === value} aria-pressed={filter === value} onClick={() => setFilter(value)}>
       {label} · <span className="tabular-nums">{count}</span>
-    </button>
+    </ToggleButton>
   );
 
   return (
