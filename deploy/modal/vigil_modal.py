@@ -58,7 +58,6 @@ api_image = (
         "S2_TIMEOUT": "150",                      # covers a GPU cold start
         "OLLAMA_URL": "http://127.0.0.1:9",       # no local fallback model here: template fallback
         "TRUST_PROXY": "1",
-        "ALLOWED_HOSTS": "koe-labs--vigil-api.us-east.modal.run,vigil.arddev.in",
         "CORS_ORIGINS": "https://vigil.arddev.in",   # also the only site allowed to act on a session
         "GOOGLE_REDIRECT_URI": "https://vigil.arddev.in/api/auth/google/callback",   # through the site's /api proxy
         "CHAIN_RPC_URL": "https://ethereum-sepolia-rpc.publicnode.com",
@@ -79,7 +78,11 @@ def api():
     import sys
     import time
 
+    from urllib.parse import urlparse
+
     os.environ.setdefault("S2_BASE_URL", model.get_web_url().rstrip("/") + "/v1")
+    # This API's own hostname depends on the Modal workspace it is deployed in; the site proxies /api to it.
+    os.environ.setdefault("ALLOWED_HOSTS", f"{urlparse(api.get_web_url()).hostname},vigil.arddev.in")
     sys.path.insert(0, "/root/backend")
     from app.main import app as fastapi_app
     from app.ml import system2
