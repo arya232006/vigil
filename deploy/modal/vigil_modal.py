@@ -58,6 +58,7 @@ api_image = (
         "S2_TIMEOUT": "150",                      # covers a GPU cold start
         "OLLAMA_URL": "http://127.0.0.1:9",       # no local fallback model here: template fallback
         "TRUST_PROXY": "1",
+        "FEEDS_REFRESH_ON_START": "1",            # the shipped OpenPhish copy is a snapshot; fetch today's at startup
         "CORS_ORIGINS": "https://vigil.arddev.in",   # also the only site allowed to act on a session
         "GOOGLE_REDIRECT_URI": "https://vigil.arddev.in/api/auth/google/callback",   # through the site's /api proxy
         "CHAIN_RPC_URL": "https://ethereum-sepolia-rpc.publicnode.com",

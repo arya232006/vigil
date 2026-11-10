@@ -34,15 +34,33 @@ def _norm_url(u: str) -> str:
     return f"{host}{sp.path.rstrip('/')}" + (f"?{sp.query}" if sp.query else "")
 
 
+FEED_URL = "https://openphish.com/feed.txt"       # now redirects to the GitHub-hosted public feed
+REFRESH_SECONDS = 6 * 3600
+
+
 def refresh_openphish(force: bool = False) -> None:
-    if not force and OPENPHISH.exists() and time.time() - OPENPHISH.stat().st_mtime < 6 * 3600:
+    if not force and OPENPHISH.exists() and time.time() - OPENPHISH.stat().st_mtime < REFRESH_SECONDS:
         return
     try:
-        r = httpx.get("https://openphish.com/feed.txt", timeout=20)
-        if r.status_code == 200 and len(r.text) > 100:
+        r = httpx.get(FEED_URL, timeout=20, follow_redirects=True)
+        lines = [line.strip() for line in r.text.splitlines() if line.strip()]
+        # Only replace the local copy with something that is really a URL list (not an error or redirect page).
+        if r.status_code == 200 and len(lines) > 10 and all(line.startswith(("http://", "https://")) for line in lines[:20]):
             OPENPHISH.write_text(r.text)
     except httpx.HTTPError:
         pass
+
+
+def keep_fresh() -> None:
+    """Load the feeds, then refresh OpenPhish every 6 hours for as long as the process runs.
+    FEEDS_REFRESH_ON_START=1 downloads it at startup even if the shipped copy looks recent."""
+    force = os.getenv("FEEDS_REFRESH_ON_START", "0") == "1"
+    while True:
+        if force:
+            refresh_openphish(force=True)
+            force = False
+        load()
+        time.sleep(REFRESH_SECONDS)
 
 
 def load() -> None:

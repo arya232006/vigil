@@ -47,7 +47,7 @@ TRUST_PROXY = os.getenv("TRUST_PROXY", "0") == "1"     # set behind a reverse pr
 @asynccontextmanager
 async def _lifespan(_: FastAPI):
     """Warm the threat feeds and models in the background, so the first request doesn't pay for it."""
-    threading.Thread(target=threatintel.load, daemon=True).start()
+    threading.Thread(target=threatintel.keep_fresh, daemon=True).start()
     threading.Thread(target=lambda: (system1._url(), system1._msg()), daemon=True).start()
     yield
 
