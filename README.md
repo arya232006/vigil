@@ -306,6 +306,11 @@ By default the API binds to localhost and accepts only local hosts and origins. 
 In `frontend/.env.local`, set `NEXT_PUBLIC_API_URL`, then rebuild, because `NEXT_PUBLIC_` values are
 fixed at build time. `NEXT_PUBLIC_TRUSTED_REPORTER` must be the backend signer's public address.
 
+If the frontend and API are on different domains, proxy the API through the frontend so sign-in cookies are first-party
+(Safari blocks third-party ones). Set `API_PROXY_TARGET` to the backend's URL and `NEXT_PUBLIC_API_URL` to the frontend's
+own URL, then use `https://<frontend-domain>/api/auth/google/callback` as `GOOGLE_REDIRECT_URI`. Add the frontend's
+hostname to `ALLOWED_HOSTS`. On Vercel, proxied requests must start responding within 120 seconds.
+
 The backend also has a container image, which runs as a non-root user and stores SQLite in `/data`:
 
 ```bash

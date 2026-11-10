@@ -39,6 +39,11 @@ const nextConfig: NextConfig = {
       },
     },
   },
+  // Serves the API from this site's own domain, so the session cookie is first-party. Safari blocks third-party ones.
+  async rewrites() {
+    const target = process.env.API_PROXY_TARGET?.replace(/\/$/, "");
+    return target ? [{ source: "/api/:path*", destination: `${target}/api/:path*` }] : [];
+  },
   async headers() {
     return [
       {

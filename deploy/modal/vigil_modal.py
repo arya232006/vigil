@@ -57,10 +57,9 @@ api_image = (
         "S2_TIMEOUT": "150",                      # covers a GPU cold start
         "OLLAMA_URL": "http://127.0.0.1:9",       # no local fallback model here: template fallback
         "TRUST_PROXY": "1",
-        "ALLOWED_HOSTS": "koe-labs--vigil-api.us-east.modal.run",
+        "ALLOWED_HOSTS": "koe-labs--vigil-api.us-east.modal.run,vigil.arddev.in",
         "CORS_ORIGINS": "https://vigil.arddev.in",   # also the only site allowed to act on a session
-        "SESSION_COOKIE_SAMESITE": "none",        # the site and this API are on different domains
-        "GOOGLE_REDIRECT_URI": "https://koe-labs--vigil-api.us-east.modal.run/api/auth/google/callback",
+        "GOOGLE_REDIRECT_URI": "https://vigil.arddev.in/api/auth/google/callback",   # through the site's /api proxy
         "CHAIN_RPC_URL": "https://ethereum-sepolia-rpc.publicnode.com",
         "CHAIN_CONTRACT_ADDRESS": "0x012175dc68cb5480e37419a2ec9e04ee5Eef216F",
         "CHAIN_DEPLOY_BLOCK": "12095029",
