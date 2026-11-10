@@ -68,6 +68,15 @@ class _PostgresDb:
 
 _db: _SqliteDb | _PostgresDb = _PostgresDb(DATABASE_URL) if DATABASE_URL else _SqliteDb(DB_PATH)
 
+_USERS_COLUMNS = """(
+        id TEXT PRIMARY KEY,
+        email TEXT UNIQUE,
+        username TEXT UNIQUE,
+        password_hash TEXT NOT NULL,
+        created_at BIGINT NOT NULL,
+        google_sub TEXT UNIQUE
+    )"""
+
 for _statement in (
     """CREATE TABLE IF NOT EXISTS reports (
         report_id TEXT PRIMARY KEY,
@@ -97,13 +106,7 @@ for _statement in (
         anchored_at TEXT NOT NULL,
         PRIMARY KEY (report_id, chain_id, contract_address)
     )""",
-    """CREATE TABLE IF NOT EXISTS users (
-        id TEXT PRIMARY KEY,
-        email TEXT NOT NULL UNIQUE,
-        password_hash TEXT NOT NULL,
-        created_at BIGINT NOT NULL,
-        google_sub TEXT UNIQUE
-    )""",
+    f"CREATE TABLE IF NOT EXISTS users {_USERS_COLUMNS}",
     """CREATE TABLE IF NOT EXISTS sessions (
         token_hash TEXT PRIMARY KEY,
         user_id TEXT NOT NULL,
@@ -116,6 +119,28 @@ for _statement in (
 if isinstance(_db, _SqliteDb) and "owner_id" not in [r[1] for r in _db.query("PRAGMA table_info(reports)")]:
     _db.query("ALTER TABLE reports ADD COLUMN owner_id TEXT")      # databases created before accounts existed
 _db.query("CREATE INDEX IF NOT EXISTS idx_reports_owner ON reports(owner_id, analyzed_at)")
+
+
+def _migrate_users(db) -> None:
+    """Accounts made before usernames existed: adds the column and makes email optional, keeping every row."""
+    if isinstance(db, _SqliteDb):                           # SQLite can't drop NOT NULL, so the table is rebuilt
+        if "username" in [r[1] for r in db.query("PRAGMA table_info(users)")]:
+            return
+        columns = "id, email, password_hash, created_at, google_sub"
+        with db._lock:                                      # all or nothing: an interrupted rebuild loses no accounts
+            db._conn.executescript(f"""BEGIN;
+                ALTER TABLE users RENAME TO users_old;
+                CREATE TABLE users {_USERS_COLUMNS};
+                INSERT INTO users ({columns}) SELECT {columns} FROM users_old;
+                DROP TABLE users_old;
+                COMMIT;""")
+        return
+    db.query("ALTER TABLE users ADD COLUMN IF NOT EXISTS username TEXT")
+    db.query("ALTER TABLE users ALTER COLUMN email DROP NOT NULL")
+    db.query("CREATE UNIQUE INDEX IF NOT EXISTS idx_users_username ON users(username)")
+
+
+_migrate_users(_db)
 
 _ANCHOR_COLUMNS = ("report_id", "chain_id", "contract_address", "registry_id", "tx_hash", "block_number",
                    "report_hash", "indicator_hash", "reporter", "anchored_at")
@@ -159,17 +184,24 @@ def save(report: Report, indicators: list[tuple[str, str]], owner_id: str | None
     )
 
 
-def create_user(email: str, password_hash: str, created_at: int) -> str | None:
-    """The new user's id, or None if the email is taken. The database decides, so simultaneous sign-ups can't both win."""
-    rows = _db.query("INSERT INTO users (id, email, password_hash, created_at) VALUES (?,?,?,?) "
-                     "ON CONFLICT (email) DO NOTHING RETURNING id",
-                     (f"usr_{uuid.uuid4().hex}", email, password_hash, created_at))
+def create_user(email: str | None, password_hash: str, created_at: int, username: str | None = None) -> str | None:
+    """The new user's id, or None if the email or username is taken. The database decides, so simultaneous sign-ups
+    can't both win."""
+    rows = _db.query("INSERT INTO users (id, email, username, password_hash, created_at) VALUES (?,?,?,?,?) "
+                     "ON CONFLICT DO NOTHING RETURNING id",
+                     (f"usr_{uuid.uuid4().hex}", email, username, password_hash, created_at))
     return rows[0][0] if rows else None
 
 
-def find_user(email: str) -> tuple[str, str] | None:
-    rows = _db.query("SELECT id, password_hash FROM users WHERE email=?", (email,))
-    return (rows[0][0], rows[0][1]) if rows else None
+def find_user(identifier: str) -> tuple[str, str, str | None, str | None] | None:
+    """(id, password_hash, email, username). Usernames can't contain "@" and emails must, so the two never collide."""
+    rows = _db.query("SELECT id, password_hash, email, username FROM users WHERE email=? OR username=?",
+                     (identifier, identifier))
+    return tuple(rows[0]) if rows else None
+
+
+def username_taken(username: str) -> bool:
+    return bool(_db.query("SELECT 1 FROM users WHERE username=?", (username,)))
 
 
 def google_user(sub: str, email: str, created_at: int) -> str | None:
@@ -203,10 +235,10 @@ def create_session(token_hash: str, user_id: str, created_at: int, expires_at: i
               (token_hash, user_id, created_at, expires_at))
 
 
-def session_user(token_hash: str, now: int) -> tuple[str, str] | None:
-    rows = _db.query("SELECT u.id, u.email FROM sessions s JOIN users u ON u.id = s.user_id "
+def session_user(token_hash: str, now: int) -> tuple[str, str | None, str | None] | None:
+    rows = _db.query("SELECT u.id, u.email, u.username FROM sessions s JOIN users u ON u.id = s.user_id "
                      "WHERE s.token_hash=? AND s.expires_at > ?", (token_hash, now))
-    return (rows[0][0], rows[0][1]) if rows else None
+    return tuple(rows[0]) if rows else None
 
 
 def delete_session(token_hash: str) -> None:

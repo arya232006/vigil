@@ -166,6 +166,7 @@ and chose not to deploy because it missed real scams.
 - **Training data is mostly English**, with some Hinglish. Other languages are less reliable.
 - **An on-chain record proves integrity, not truth.** It shows a report hasn't changed since it was anchored, not that
   its conclusions are right.
+- **Accounts created with only a username can't be recovered** if the password is lost.
 - **Password accounts have no reset or email verification yet**, because Vigil doesn't send email. Signing in with
   Google for the same address links the accounts and removes the password.
 - **Message checks are weaker without System-2.** Scam recall is 95.5% with it and 49.4% on rules and System-1 alone.

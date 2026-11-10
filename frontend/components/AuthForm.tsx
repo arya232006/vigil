@@ -4,12 +4,13 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 import { Button, Card, ErrorNote } from "@/components/ui";
-import { API, errorMessage, signIn, signUp } from "@/lib/api";
+import { API, errorMessage, generateUsername, signIn, signUp } from "@/lib/api";
 import { useSession } from "@/lib/session";
 
 const MIN_PASSWORD = 10;
 const FIELD = "w-full border border-(--l-ink) bg-(--l-paper) px-3 py-2 text-base";
 const INPUT = `mt-1 ${FIELD}`;
+const NAME_FIELD = { autoCapitalize: "none", autoCorrect: "off", spellCheck: false } as const;
 
 function EyeIcon({ crossed }: { crossed: boolean }) {
   return (
@@ -26,19 +27,23 @@ function safeNext(value: string | null): string {
   return value && /^\/(?![/\\])/.test(value) ? value : "/investigate";
 }
 
+type Method = "email" | "username";
+
 export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
   const creating = mode === "sign-up";
   const router = useRouter();
   const params = useSearchParams();
   const next = safeNext(params.get("next"));
   const { ready, account, google, setAccount } = useSession();
-  const [email, setEmail] = useState("");
+  const [method, setMethod] = useState<Method>("email");
+  const [identifier, setIdentifier] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState<string | null>(
     params.get("error") === "google" ? "Google sign-in didn’t work. Try again." : null,
   );
   const [busy, setBusy] = useState(false);
+  const [generating, setGenerating] = useState(false);
 
   useEffect(() => {
     if (ready && account) router.replace(next);
@@ -49,7 +54,9 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
     setBusy(true);
     setError(null);
     try {
-      const { user } = await (creating ? signUp : signIn)(email, password);
+      const { user } = creating
+        ? await signUp(method === "email" ? { email: identifier } : { username: identifier }, password)
+        : await signIn(identifier, password);
       setAccount(user);
     } catch (e) {
       setError(errorMessage(e));
@@ -57,18 +64,80 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
     }
   };
 
+  const chooseMethod = (choice: Method) => {
+    if (choice === method) return;
+    setMethod(choice);
+    setIdentifier("");
+    setError(null);
+  };
+
+  const generate = async () => {
+    setGenerating(true);
+    setError(null);
+    try {
+      setIdentifier((await generateUsername()).username);
+    } catch (e) {
+      setError(errorMessage(e));
+    } finally {
+      setGenerating(false);
+    }
+  };
+
+  const methodButton = (value: Method, label: string) => (
+    <button
+      type="button"
+      aria-pressed={method === value}
+      onClick={() => chooseMethod(value)}
+      className={`terminal flex-1 cursor-pointer border border-(--l-ink) px-3 py-0.5 text-xl ${
+        method === value ? "bg-(--l-ink) text-(--l-paper)" : "bg-(--l-paper) hover:bg-sunken"
+      }`}
+    >
+      {label}
+    </button>
+  );
+
   const other = creating ? "/sign-in" : "/sign-up";
   const otherHref = next === "/investigate" ? other : `${other}?next=${encodeURIComponent(next)}`;
+  const usingUsername = creating && method === "username";
 
   return (
     <Card title={creating ? "account.create" : "account.sign-in"} className="w-full max-w-md">
       <h1 className="display text-5xl">{creating ? "Create Account" : "Sign In"}</h1>
       <form onSubmit={submit} className="mt-6 space-y-4">
-        <label className="block text-sm font-medium">
-          Email
-          <input className={INPUT} type="email" name="email" autoComplete="email" required value={email}
-            onChange={(e) => setEmail(e.target.value)} />
-        </label>
+        {creating && (
+          <div className="flex gap-1.5" role="group" aria-label="Sign up with">
+            {methodButton("email", "Email")}
+            {methodButton("username", "Username")}
+          </div>
+        )}
+        {!creating && (
+          <label className="block text-sm font-medium">
+            Email or username
+            <input className={INPUT} type="text" name="identifier" autoComplete="username" required {...NAME_FIELD}
+              value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
+          </label>
+        )}
+        {creating && method === "email" && (
+          <label className="block text-sm font-medium">
+            Email
+            <input className={INPUT} type="email" name="email" autoComplete="email" required value={identifier}
+              onChange={(e) => setIdentifier(e.target.value)} />
+          </label>
+        )}
+        {usingUsername && (
+          <div>
+            <label htmlFor="username" className="block text-sm font-medium">Username</label>
+            <div className="mt-1 flex gap-1.5">
+              <input id="username" className={`${FIELD} min-w-0 flex-1`} type="text" name="username" autoComplete="username"
+                required minLength={3} maxLength={30} pattern="[A-Za-z0-9][A-Za-z0-9_\-]{1,28}[A-Za-z0-9]"
+                title="3 to 30 letters, numbers, hyphens or underscores, starting and ending with a letter or number"
+                {...NAME_FIELD} value={identifier} onChange={(e) => setIdentifier(e.target.value)} />
+              <Button type="button" onClick={generate} disabled={generating}>
+                {generating ? "…" : "Generate"}
+              </Button>
+            </div>
+          </div>
+        )}
         <div>
           <label htmlFor="password" className="block text-sm font-medium">Password</label>
           <div className="relative mt-1">
@@ -90,7 +159,10 @@ export function AuthForm({ mode }: { mode: "sign-in" | "sign-up" }) {
         </div>
         {creating && (
           <p className="text-sm leading-snug text-ink-2">
-            Use at least {MIN_PASSWORD} characters. We can’t reset passwords yet, so keep yours somewhere safe.
+            Use at least {MIN_PASSWORD} characters.{" "}
+            {usingUsername
+              ? "Save your username and password somewhere safe. Without an email, this account can’t be recovered."
+              : "We can’t reset passwords yet, so keep yours somewhere safe."}
           </p>
         )}
         {error && <ErrorNote>{error}</ErrorNote>}

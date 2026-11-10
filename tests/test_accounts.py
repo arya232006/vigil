@@ -84,7 +84,7 @@ def test_email_is_case_insensitive_and_unique():
     email = _email()
     assert _signup(_browser(), email).status_code == 201
     assert _signup(_browser(), email.upper()).status_code == 409
-    login = _browser().post("/api/auth/login", json={"email": email.upper(), "password": PASSWORD})
+    login = _browser().post("/api/auth/login", json={"identifier": email.upper(), "password": PASSWORD})
     assert login.status_code == 200
 
 
@@ -97,8 +97,8 @@ def test_bad_sign_up_details_are_refused(email, password):
 def test_wrong_password_and_unknown_email_look_the_same():
     email = _email()
     _signup(_browser(), email)
-    wrong = _browser().post("/api/auth/login", json={"email": email, "password": "wrong password here"})
-    unknown = _browser().post("/api/auth/login", json={"email": _email(), "password": PASSWORD})
+    wrong = _browser().post("/api/auth/login", json={"identifier": email, "password": "wrong password here"})
+    unknown = _browser().post("/api/auth/login", json={"identifier": _email(), "password": PASSWORD})
     assert wrong.status_code == unknown.status_code == 401 and wrong.json() == unknown.json()
     assert "set-cookie" not in wrong.headers
 
@@ -145,7 +145,7 @@ def test_cookie_post_from_another_site_is_refused(origin):
 @pytest.mark.parametrize("path", ["signup", "login", "logout"])
 def test_account_actions_need_an_allowed_origin(path):
     r = TestClient(main.app, headers={"Origin": "https://evil.test"}).post(
-        f"/api/auth/{path}", json={"email": _email(), "password": PASSWORD})
+        f"/api/auth/{path}", json={"identifier": _email(), "email": _email(), "password": PASSWORD})
     assert r.status_code == 403
 
 
@@ -163,9 +163,88 @@ def test_https_site_gets_a_secure_cookie(monkeypatch):
 
 def test_password_guessing_is_rate_limited():
     browser, email = _browser(), _email()
-    codes = [browser.post("/api/auth/login", json={"email": email, "password": "wrong password"}).status_code
+    codes = [browser.post("/api/auth/login", json={"identifier": email, "password": "wrong password"}).status_code
              for _ in range(main.AUTH_RATE + 1)]
     assert codes[:-1] == [401] * main.AUTH_RATE and codes[-1] == 429
+
+
+def _username():
+    return f"user-{uuid.uuid4().hex[:12]}"
+
+
+def test_username_account_signs_in_with_its_username():
+    browser, name = _browser(), _username()
+    r = browser.post("/api/auth/signup", json={"username": name.upper(), "password": PASSWORD})
+    assert r.status_code == 201 and r.json()["user"] == {"id": r.json()["user"]["id"], "email": None, "username": name}
+    assert browser.get("/api/auth/me").json()["user"]["username"] == name
+    login = _browser().post("/api/auth/login", json={"identifier": f" {name.upper()} ", "password": PASSWORD})
+    assert login.status_code == 200 and login.json()["user"]["username"] == name
+
+
+def test_username_is_unique_ignoring_case():
+    name = _username()
+    assert _browser().post("/api/auth/signup", json={"username": name, "password": PASSWORD}).status_code == 201
+    taken = _browser().post("/api/auth/signup", json={"username": name.upper(), "password": PASSWORD})
+    assert taken.status_code == 409 and "username" in taken.json()["detail"]
+
+
+def test_many_username_accounts_can_have_no_email():
+    for _ in range(2):
+        assert _browser().post("/api/auth/signup", json={"username": _username(), "password": PASSWORD}).status_code == 201
+
+
+@pytest.mark.parametrize("body", [{}, {"email": "a@example.com", "username": "valid-name"}])
+def test_sign_up_needs_exactly_one_of_email_or_username(body):
+    assert _browser().post("/api/auth/signup", json={**body, "password": PASSWORD}).status_code == 400
+
+
+@pytest.mark.parametrize("name", ["ab", "x" * 31, "has space", "has@sign", "-edge", "edge_", "semi;colon"])
+def test_bad_usernames_are_refused(name):
+    assert _browser().post("/api/auth/signup", json={"username": name, "password": PASSWORD}).status_code == 400
+
+
+def test_wrong_password_for_username_looks_like_unknown_account():
+    name = _username()
+    _browser().post("/api/auth/signup", json={"username": name, "password": PASSWORD})
+    wrong = _browser().post("/api/auth/login", json={"identifier": name, "password": "wrong password here"})
+    unknown = _browser().post("/api/auth/login", json={"identifier": _username(), "password": PASSWORD})
+    assert wrong.status_code == unknown.status_code == 401 and wrong.json() == unknown.json()
+
+
+def test_generated_username_is_valid_and_can_be_used():
+    browser = _browser()
+    name = browser.get("/api/auth/username").json()["username"]
+    assert auth.USERNAME.fullmatch(name)
+    assert browser.post("/api/auth/signup", json={"username": name, "password": PASSWORD}).status_code == 201
+
+
+def test_generator_skips_taken_names(monkeypatch):
+    seen = iter([True, True, False])
+    monkeypatch.setattr(store, "username_taken", lambda name: next(seen))
+    assert auth.USERNAME.fullmatch(auth.generate_username())
+
+
+def test_generator_gives_up_cleanly_when_everything_is_taken(monkeypatch):
+    monkeypatch.setattr(store, "username_taken", lambda name: True)
+    assert client.get("/api/auth/username").status_code == 503
+
+
+def test_username_generation_is_rate_limited():
+    codes = [client.get("/api/auth/username").status_code for _ in range(main.AUTH_RATE * 3 + 1)]
+    assert codes[-1] == 429 and set(codes[:-1]) == {200}
+
+
+def test_old_user_table_migrates_and_keeps_its_accounts(tmp_path):
+    db = store._SqliteDb(tmp_path / "old.db")
+    db.query("CREATE TABLE users (id TEXT PRIMARY KEY, email TEXT NOT NULL UNIQUE, password_hash TEXT NOT NULL, "
+             "created_at BIGINT NOT NULL, google_sub TEXT UNIQUE)")
+    db.query("INSERT INTO users VALUES ('usr_1', 'old@example.com', 'hash', 5, 'sub')")
+    store._migrate_users(db)
+    store._migrate_users(db)                                # safe to run on every start
+    assert db.query("SELECT id, email, username, password_hash, created_at, google_sub FROM users") == [
+        ("usr_1", "old@example.com", None, "hash", 5, "sub")]
+    db.query("INSERT INTO users (id, username, password_hash, created_at) VALUES ('usr_2', 'new-name', 'h', 6)")
+    assert len(db.query("SELECT 1 FROM users")) == 2
 
 
 class _GoogleReply:
@@ -247,7 +326,7 @@ def test_google_link_locks_out_whoever_registered_the_email_first(google):
     identity.update(sub=uuid.uuid4().hex, email=email, email_verified=True)
     _google_login(_browser())
     assert squatter.get("/api/stats").status_code == 401
-    assert _browser().post("/api/auth/login", json={"email": email, "password": PASSWORD}).status_code == 401
+    assert _browser().post("/api/auth/login", json={"identifier": email, "password": PASSWORD}).status_code == 401
 
 
 def test_unverified_google_email_is_refused(google):
@@ -285,7 +364,7 @@ def test_password_cannot_open_a_google_only_account(google):
     email = _email()
     identity.update(sub=uuid.uuid4().hex, email=email, email_verified=True)
     _google_login(_browser())
-    assert _browser().post("/api/auth/login", json={"email": email, "password": ""}).status_code == 401
+    assert _browser().post("/api/auth/login", json={"identifier": email, "password": ""}).status_code == 401
 
 
 @pytest.mark.parametrize("path", ["/api/reports", "/api/stats"])

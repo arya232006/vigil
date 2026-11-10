@@ -16,8 +16,9 @@ Full typed schema: `backend/app/schemas.py` (the `Report` model is the contract)
 | GET | `/api/health` | Feed + model status |
 | GET | `/api/models` | Evaluation metrics of the self-hosted models (show these in the UI!) |
 
-**Accounts.** `POST /api/auth/signup` and `POST /api/auth/login` take `{"email", "password"}` and set an HttpOnly session
-cookie. `POST /api/auth/logout` ends the session, and `GET /api/auth/me` returns `{"user": {"id", "email"} | null, "google": bool}`.
+**Accounts.** `POST /api/auth/signup` takes `{"email" or "username", "password"}` and `POST /api/auth/login` takes
+`{"identifier", "password"}`, where the identifier is the email or username. Both set an HttpOnly session cookie.
+`GET /api/auth/username` suggests a free random username. `POST /api/auth/logout` ends the session, and `GET /api/auth/me` returns `{"user": {"id", "email", "username"} | null, "google": bool}`.
 For Google, send the browser to `GET /api/auth/google/start?next=/path`. Browsers must send credentials (`credentials: "include"`). With no cookie the caller is a guest; an
 invalid or expired cookie is a **401**, never a guest. POST requests that carry the cookie, and the sign-up, login and
 logout calls, must come from an origin in `CORS_ORIGINS` (**403** otherwise). Reports from signed-in users are readable only by their owner
