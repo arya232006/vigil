@@ -62,6 +62,7 @@ api_image = (
         "CORS_ORIGINS": "https://vigil.arddev.in",   # also the only site allowed to act on a session
         "GOOGLE_REDIRECT_URI": "https://vigil.arddev.in/api/auth/google/callback",   # through the site's /api proxy
         "CHAIN_RPC_URL": "https://ethereum-sepolia-rpc.publicnode.com",
+        "CHAIN_LOGS_RPC_URLS": "https://sepolia.gateway.tenderly.co",   # keeps full event history; publicnode may not
         "CHAIN_CONTRACT_ADDRESS": "0x012175dc68cb5480e37419a2ec9e04ee5Eef216F",
         "CHAIN_DEPLOY_BLOCK": "12095029",
         "CHAIN_TRUSTED_REPORTER": "0xc77944D7e8E9Fb1742ae75b538834E7f08c1Daf1",

@@ -75,6 +75,23 @@ def _connect():
     return w3, w3.eth.contract(address=Web3.to_checksum_address(address), abi=abi)
 
 
+def _history(contract, query):
+    """Run an event-log query. Public RPC pools mix full-history and pruned nodes, so a failed query is retried once
+    and then sent to the RPCs in CHAIN_LOGS_RPC_URLS (comma-separated), which must keep the contract's history."""
+    fallbacks = [u.strip() for u in os.getenv("CHAIN_LOGS_RPC_URLS", "").split(",") if u.strip()]
+    contracts = [contract, contract] + [
+        Web3(Web3.HTTPProvider(url, request_kwargs={"timeout": 10})).eth.contract(address=contract.address, abi=contract.abi)
+        for url in fallbacks]
+    for attempt, c in enumerate(contracts):
+        try:
+            return query(c)
+        except (Web3Exception, OSError, ValueError) as e:
+            if attempt == len(contracts) - 1:
+                raise
+            log.info("chain history query failed (%s), trying the next RPC", type(e).__name__)
+    raise AssertionError("unreachable")
+
+
 def _signer(w3):
     key = os.getenv("CHAIN_PRIVATE_KEY")
     if not key:
@@ -218,11 +235,11 @@ def lookup(domain: str) -> dict:
     w3, contract = _connect()
     wanted = indicator_hash(domain)
     trusted = _trusted_reporter(w3)
-    logs = contract.events.ReportSubmitted().get_logs(
+    logs = _history(contract, lambda c: c.events.ReportSubmitted().get_logs(
         from_block=int(os.getenv("CHAIN_DEPLOY_BLOCK", "0")),
         to_block="latest",
         argument_filters={"indicatorHash": _bytes32(wanted)},
-    )
+    ))
     logs = [e for e in logs if e["args"]["reporter"].lower() == trusted]
     return {"indicator_hash": wanted, "count": len(logs), "reports": [{
         "registry_id": int(e["args"]["id"]), "report_hash": _hex(e["args"]["reportHash"]),

@@ -225,22 +225,24 @@ def google_callback(request: Request):
 
 
 # ---------------------------------------------------------------- analysis ------------------------------------------
+# Handlers that touch Redis or the database are plain `def`: FastAPI runs them in its thread pool. As `async def`
+# their network round trips (Redis, Postgres) would block the event loop and stall every other request meanwhile.
 @app.post("/api/analyze", response_model=Report)
-async def analyze(req: AnalyzeRequest, request: Request, user: auth.Viewer, fresh: bool = False):
+def analyze(req: AnalyzeRequest, request: Request, user: auth.Viewer, fresh: bool = False):
     """Synchronous analysis. Answered from the result cache unless `fresh`; the X-Cache header says which.
     Rate limiting only applies when a new analysis actually runs."""
     report = None if fresh else jobs.cached_report(req.input, req.type, user)
     cache = "HIT" if report is not None else "MISS"
     if report is None:
         _rate_limit(_client_ip(request))
-        report = await run_in_threadpool(pipeline.analyze, req.input, req.type, user)
+        report = pipeline.analyze(req.input, req.type, user)
         jobs.remember(req.input, req.type, report, user)
     return JSONResponse(report.model_dump(mode="json"),
                         headers={"X-Cache": cache, "Access-Control-Expose-Headers": "X-Cache"})
 
 
 @app.post("/api/jobs", response_model=JobInfo, status_code=202)
-async def create_job(req: JobRequest, request: Request, user: auth.Viewer):
+def create_job(req: JobRequest, request: Request, user: auth.Viewer):
     """Queue an analysis and return at once; poll GET /api/jobs/{job_id}. A cached result comes back already
     `done` with `cached: true` and the report; an identical input already in progress returns that job."""
     return jobs.submit(req.input, req.type, fresh=req.fresh, on_new_work=lambda: _rate_limit(_client_ip(request)),
@@ -248,7 +250,7 @@ async def create_job(req: JobRequest, request: Request, user: auth.Viewer):
 
 
 @app.get("/api/jobs/{job_id}", response_model=JobInfo)
-async def get_job(job_id: str, user: auth.Viewer):
+def get_job(job_id: str, user: auth.Viewer):
     """Job status; includes the full `report` once `status` is `done`. 404 for unknown or evicted ids."""
     job = jobs.get(job_id, user)
     if job is None:
@@ -264,7 +266,7 @@ async def analyze_email(request: Request, user: auth.Viewer):
 
     JSON body {"raw": "<full .eml source>", "live_dns": true}, read with a hard size cap before parsing so an oversized
     upload can't exhaust memory."""
-    _rate_limit(_client_ip(request))
+    await run_in_threadpool(_rate_limit, _client_ip(request))      # Redis round trip: keep it off the event loop
     declared = request.headers.get("content-length", "")
     if declared.isdigit() and int(declared) > EMAIL_MAX_BODY_BYTES:
         raise HTTPException(413, f"Email too large (max {EMAIL_MAX_BODY_BYTES} bytes of JSON)")

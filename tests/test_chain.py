@@ -203,3 +203,31 @@ def test_anchoring_has_a_global_budget(client, registry, report, monkeypatch):
     monkeypatch.setenv("ANCHOR_MAX_PER_HOUR", "0")
     monkeypatch.setattr(chain, "_recent_anchors", chain.deque())
     assert client.post(f"/api/reports/{report.report_id}/anchor").status_code == 429
+
+
+def test_history_query_falls_back_to_full_history_rpc(monkeypatch):
+    """A pruned node rejects old event logs; the query is retried, then sent to CHAIN_LOGS_RPC_URLS."""
+    from web3.exceptions import Web3RPCError
+
+    calls = []
+
+    class Primary:
+        address, abi = "0x" + "11" * 20, []
+
+    def query(c):
+        calls.append(c)
+        if isinstance(c, Primary):
+            raise Web3RPCError("pruned history unavailable")
+        return ["log"]
+
+    monkeypatch.setenv("CHAIN_LOGS_RPC_URLS", "http://127.0.0.1:9")
+    assert chain._history(Primary(), query) == ["log"]
+    assert len(calls) == 3                       # primary, primary again, then the fallback
+
+    monkeypatch.delenv("CHAIN_LOGS_RPC_URLS")
+    calls.clear()
+    try:
+        chain._history(Primary(), query)
+        raise AssertionError("expected the error to surface")
+    except Web3RPCError:
+        assert len(calls) == 2
