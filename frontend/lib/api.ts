@@ -22,12 +22,33 @@ const FRIENDLY: Record<number, string> = {
   404: "That report or job no longer exists. Submit it again.",
 };
 
-async function request(path: string, init?: RequestInit): Promise<Response> {
-  let res: Response;
-  try {
-    res = await fetch(`${API}${path}`, { ...init, credentials: "include" });
-  } catch {
-    throw new ApiError(`Can't reach the Vigil API at ${API}. Is the backend running?`, 0);
+// Some networks occasionally drop a request or leave it hanging (seen as "Can't reach" on one device while another
+// works). Reads are retried, each attempt with a timeout, so one lost packet doesn't fail the page. Writes are sent
+// once, except where the server makes a repeat harmless (job submission joins the job already running).
+const READ_TIMEOUT_MS = 20_000;
+const POLL_TIMEOUT_MS = 10_000;
+const RETRIES = 2;
+
+type Attempts = { retries?: number; timeoutMs?: number };
+
+const pause = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function request(path: string, init?: RequestInit, attempts: Attempts = {}): Promise<Response> {
+  const isRead = (init?.method ?? "GET") === "GET";
+  const retries = attempts.retries ?? (isRead ? RETRIES : 0);
+  const timeoutMs = attempts.timeoutMs ?? (isRead ? READ_TIMEOUT_MS : undefined);
+  let res: Response | undefined;
+  for (let attempt = 0; res === undefined; attempt++) {
+    try {
+      res = await fetch(`${API}${path}`, {
+        ...init,
+        credentials: "include",
+        signal: init?.signal ?? (timeoutMs ? AbortSignal.timeout(timeoutMs) : undefined),
+      });
+    } catch {
+      if (attempt >= retries) throw new ApiError(`Can't reach the Vigil API at ${API}. Is the backend running?`, 0);
+      await pause(800 * (attempt + 1));
+    }
   }
   if (res.ok) return res;
   const body = await res.json().catch(() => null);
@@ -37,32 +58,16 @@ async function request(path: string, init?: RequestInit): Promise<Response> {
   throw new ApiError(friendly ?? validation ?? detail ?? `Request failed (HTTP ${res.status})`, res.status);
 }
 
-export async function getJson<T>(path: string, init?: RequestInit): Promise<T> {
-  return (await request(path, init)).json();
+export async function getJson<T>(path: string, attempts?: Attempts): Promise<T> {
+  return (await request(path, undefined, attempts)).json();
 }
 
-// The job keeps running on the server, so a status check lost on a flaky network (or one that hangs) is retried
-// instead of failing the whole analysis. JOB_TIMEOUT_MS still bounds the total wait.
-const POLL_REQUEST_TIMEOUT_MS = 10_000;
-const POLL_RETRIES = 3;
-
-async function pollJob(jobId: string): Promise<JobInfo> {
-  for (let attempt = 0; ; attempt++) {
-    try {
-      return await getJson<JobInfo>(`/api/jobs/${jobId}`, { signal: AbortSignal.timeout(POLL_REQUEST_TIMEOUT_MS) });
-    } catch (e) {
-      if (!(e instanceof ApiError) || e.status !== 0 || attempt >= POLL_RETRIES) throw e;
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-    }
-  }
-}
-
-function postJson<T>(path: string, body?: unknown): Promise<T> {
+function postJson<T>(path: string, body?: unknown, attempts?: Attempts): Promise<T> {
   return request(path, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
     body: body === undefined ? undefined : JSON.stringify(body),
-  }).then((r) => r.json());
+  }, attempts).then((r) => r.json());
 }
 
 export async function investigate(
@@ -70,7 +75,8 @@ export async function investigate(
   fresh: boolean,
   onProgress: (status: "queued" | "running") => void,
 ): Promise<JobInfo> {
-  let job = await postJson<JobInfo>("/api/jobs", { input, type: "auto", fresh });
+  // Safe to repeat: the server returns the job already running for the same input instead of starting another.
+  let job = await postJson<JobInfo>("/api/jobs", { input, type: "auto", fresh }, { retries: RETRIES, timeoutMs: READ_TIMEOUT_MS });
   const started = Date.now();
   while (job.status === "queued" || job.status === "running") {
     onProgress(job.status);
@@ -78,7 +84,7 @@ export async function investigate(
       throw new ApiError("The analysis timed out. Try again.", 0);
     }
     await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
-    job = await pollJob(job.job_id);
+    job = await getJson<JobInfo>(`/api/jobs/${job.job_id}`, { retries: 3, timeoutMs: POLL_TIMEOUT_MS });
   }
   if (job.status === "failed") throw new ApiError(job.error ?? "The analysis failed. Try again.", 0);
   return job;
